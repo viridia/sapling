@@ -1,34 +1,10 @@
 /** @jsx jsx */
 import { jsx } from '@emotion/core';
 import styled from '@emotion/styled';
+import { useState } from 'react';
+import { ControlPanel } from './ControlPanel';
+import { MeshGenerator } from './MeshGenerator';
 import { SceneView } from './SceneView';
-
-const colors = {
-  text: '#ccc',
-};
-
-const ControlPalette = styled.aside`
-  background-color: #334;
-  color: ${colors.text};
-  flex: 0 1 20rem;
-  font-weight: 500;
-  font-size: 16px;
-  padding: 16px;
-`;
-
-const Button = styled.button`
-  border: 1px solid #111;
-  border-radius: 4px;
-  background: linear-gradient(0deg, #223 0%, #445 100%);
-  color: ${colors.text};
-  font-weight: 500;
-  height: 2rem;
-  padding: 0 16px;
-  outline: none;
-  &:focus {
-    box-shadow: 0 0 1px 2px #88888844;
-  }
-`;
 
 const SceneContainer = styled.section`
   flex: 1 1 0;
@@ -46,6 +22,8 @@ const SceneContainer = styled.section`
 `;
 
 function App() {
+  const [generator] = useState(() => new MeshGenerator());
+
   return (
     <div
       className="App"
@@ -58,11 +36,9 @@ function App() {
         display: 'flex',
       }}
     >
-      <ControlPalette>
-        <Button>Hello</Button>
-      </ControlPalette>
+      <ControlPanel generator={generator} />
       <SceneContainer>
-        <SceneView />
+        <SceneView generator={generator} />
       </SceneContainer>
     </div>
   );

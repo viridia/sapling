@@ -6,6 +6,7 @@ import {
   HemisphereLight,
   WireframeGeometry,
   LineSegments,
+  Group,
 } from 'three';
 import { MeshGenerator } from './MeshGenerator';
 import { ResourcePool } from './ResourcePool';
@@ -16,11 +17,15 @@ export class SceneRenderer {
   private renderer: WebGLRenderer;
   private pool = new ResourcePool();
   private frameId: number | null = null;
-  private generator = new MeshGenerator();
+  private showWireframe: boolean = false;
+  private group = new Group();
+  private groupPool = new ResourcePool();
+  private cameraAngle: number = 0;
 
-  constructor(private mount: HTMLElement) {
+  constructor(private mount: HTMLElement, private generator: MeshGenerator) {
     this.render = this.render.bind(this);
     this.handleResize = this.handleResize.bind(this);
+    this.handleWheel = this.handleWheel.bind(this);
     this.pool.add(this.scene);
 
     const width = mount.clientWidth;
@@ -28,10 +33,7 @@ export class SceneRenderer {
 
     // Setup camera
     this.camera = new PerspectiveCamera(40, width / height, 0.1, 100);
-    this.camera.position.z = 4;
-    this.camera.position.y = 4;
-    this.camera.position.x = 4;
-    this.camera.lookAt(0, 1, 0);
+    this.updateCameraPosition();
 
     // Setup renderer
     this.renderer = new WebGLRenderer({ antialias: true });
@@ -45,6 +47,7 @@ export class SceneRenderer {
 
     // Setup window resize callback.
     window.addEventListener('resize', this.handleResize);
+    window.addEventListener('wheel', this.handleWheel);
 
     this.start();
   }
@@ -52,6 +55,7 @@ export class SceneRenderer {
   public dispose() {
     this.stop();
     window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('wheel', this.handleWheel);
     this.mount.removeChild(this.renderer.domElement);
     this.pool.dispose();
   }
@@ -65,31 +69,44 @@ export class SceneRenderer {
     this.scene.add(hLight);
 
     // Directional light
-    const sunlight = new DirectionalLight('#ffffff', 0.3);
-    sunlight.position.set(5, 7, 4);
+    const sunlight = new DirectionalLight('#ffffff', 0.5);
+    sunlight.position.set(5, 7, -4);
     sunlight.target.position.set(0, 0, 0);
     this.scene.add(sunlight);
     this.scene.add(sunlight.target);
   }
 
   private addObjects() {
+    if (this.group) {
+      this.scene.remove(this.group);
+      this.groupPool.dispose();
+    }
+
+    this.group = new Group();
+    this.scene.add(this.group);
+
     // Add a generated mesh to the scene.
-    const mesh = this.generator.generate(this.pool);
-    this.scene.add(mesh);
+    const mesh = this.generator.generate();
+    this.group.add(mesh);
 
     // Add a wireframe version of the same object
-    const wireframe = new WireframeGeometry(mesh.geometry);
-    const line = new LineSegments(wireframe);
-    // line.material.depthTest = false;
-    // line.material.opacity = 0.25;
-    // line.material.transparent = true;
+    if (this.showWireframe) {
+      const wireframe = this.groupPool.add(new WireframeGeometry(mesh.geometry));
+      const line = new LineSegments(wireframe);
+      // line.material.depthTest = false;
+      // line.material.opacity = 0.25;
+      // line.material.transparent = true;
 
-    this.scene.add(line);
+      this.group.add(line);
+    }
   }
 
   private render() {
-    // this.processInput();
-    // this.updateCameraPosition();
+    this.updateCameraPosition();
+    if (this.generator.isModified) {
+      this.generator.generate();
+    }
+
     this.renderer.render(this.scene, this.camera);
     setTimeout(() => {
       this.frameId = window.requestAnimationFrame(this.render);
@@ -107,6 +124,13 @@ export class SceneRenderer {
     this.frameId = null;
   }
 
+  private updateCameraPosition() {
+    this.camera.position.z = Math.sin(this.cameraAngle) * 5;
+    this.camera.position.y = 7;
+    this.camera.position.x = Math.cos(this.cameraAngle) * 5;
+    this.camera.lookAt(0, 2, 0);
+  }
+
   private handleResize() {
     const width = this.mount.clientWidth;
     const height = this.mount.clientHeight;
@@ -114,5 +138,10 @@ export class SceneRenderer {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.render();
+  }
+
+  private handleWheel(e: WheelEvent) {
+    this.cameraAngle -= e.deltaX / 200;
+    this.cameraAngle = this.cameraAngle % (Math.PI * 2);
   }
 }
