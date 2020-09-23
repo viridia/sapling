@@ -4,8 +4,6 @@ import {
   WebGLRenderer,
   DirectionalLight,
   HemisphereLight,
-  WireframeGeometry,
-  LineSegments,
   Group,
 } from 'three';
 import { MeshGenerator } from './MeshGenerator';
@@ -88,17 +86,6 @@ export class SceneRenderer {
     // Add a generated mesh to the scene.
     const mesh = this.generator.generate();
     this.group.add(mesh);
-
-    // Add a wireframe version of the same object
-    if (this.showWireframe) {
-      const wireframe = this.groupPool.add(new WireframeGeometry(mesh.geometry));
-      const line = new LineSegments(wireframe);
-      // line.material.depthTest = false;
-      // line.material.opacity = 0.25;
-      // line.material.transparent = true;
-
-      this.group.add(line);
-    }
   }
 
   private render() {
