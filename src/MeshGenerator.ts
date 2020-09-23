@@ -1,4 +1,5 @@
 import {
+  BackSide,
   BufferGeometry,
   CanvasTexture,
   DoubleSide,
@@ -10,6 +11,7 @@ import {
   MeshLambertMaterial,
   Vector3,
 } from 'three';
+import { OutlineMaterial } from './materials/OutlineMaterial';
 import {
   addGlobalListener,
   Property,
@@ -24,7 +26,9 @@ export class MeshGenerator {
 
   private barkGeometry = new BufferGeometry();
   private barkMaterial = new MeshLambertMaterial({ color: 0xa08000 });
+  private barkOutlineMaterial = new OutlineMaterial();
   private barkMesh: Mesh;
+  private barkOutlineMesh: Mesh;
 
   private leafGeometry = new BufferGeometry();
   private leafMaterial = new MeshBasicMaterial();
@@ -48,9 +52,17 @@ export class MeshGenerator {
     });
 
     this.barkMesh = new Mesh(this.barkGeometry, this.barkMaterial);
+    this.barkOutlineMesh = new Mesh(this.barkGeometry, this.barkOutlineMaterial);
     this.leafMesh = new Mesh(this.leafGeometry, this.leafMaterial);
 
+    this.barkOutlineMaterial.side = BackSide;
+
+    this.leafMaterial.side = DoubleSide;
+    this.leafMaterial.transparent = true;
+    this.leafMaterial.alphaTest = 0.2;
+
     this.group.add(this.barkMesh);
+    this.group.add(this.barkOutlineMesh);
     this.group.add(this.leafMesh);
 
     this.canvas = document.createElement('canvas');
@@ -71,13 +83,16 @@ export class MeshGenerator {
     }
 
     this.leafTexture = new CanvasTexture(this.canvas);
+    this.leafMaterial.map = this.leafTexture;
   }
 
   public dispose() {
     this.group.remove(this.barkMesh);
+    this.group.remove(this.barkOutlineMesh);
     this.group.remove(this.leafMesh);
     this.barkGeometry.dispose();
     this.barkMaterial.dispose();
+    this.barkOutlineMaterial.dispose();
     this.leafGeometry.dispose();
     this.leafMaterial.dispose();
     this.unsubscribe();
@@ -111,6 +126,7 @@ export class MeshGenerator {
     this.barkGeometry.setAttribute('position', new Float32BufferAttribute(positionArray, 3));
     this.barkGeometry.computeVertexNormals();
     this.barkMesh.geometry = this.barkGeometry;
+    this.barkOutlineMesh.geometry = this.barkGeometry;
 
     this.createLeafMesh();
     return this.group;
@@ -213,11 +229,7 @@ export class MeshGenerator {
     this.leafGeometry.setAttribute('uv', new Float32BufferAttribute(texCoordArray, 2));
     this.leafGeometry.computeVertexNormals();
 
-    this.leafMaterial.side = DoubleSide;
     this.leafMaterial.map = this.leafTexture;
-    this.leafMaterial.transparent = true;
-    this.leafMaterial.alphaTest = 0.2;
-
     this.leafMesh.geometry = this.leafGeometry;
   }
 

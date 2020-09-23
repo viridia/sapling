@@ -1,10 +1,10 @@
 /** @jsx jsx */
 import { jsx } from '@emotion/core';
-import styled from '@emotion/styled';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ControlPanel } from './ControlPanel';
 import { MeshGenerator } from './MeshGenerator';
 import { SceneView } from './SceneView';
+import styled from '@emotion/styled';
 
 const SceneContainer = styled.section`
   flex: 1 1 0;
@@ -23,14 +23,6 @@ const SceneContainer = styled.section`
 
 function App() {
   const [generator] = useState(() => new MeshGenerator());
-  const [scene, setScene] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (scene) {
-      scene.appendChild(generator.canvas);
-      return () => { scene.removeChild(generator.canvas); }
-    }
-  }, [scene, generator.canvas]);
 
   return (
     <div
@@ -45,7 +37,7 @@ function App() {
       }}
     >
       <ControlPanel generator={generator} />
-      <SceneContainer ref={setScene}>
+      <SceneContainer>
         <SceneView generator={generator} />
       </SceneContainer>
     </div>
