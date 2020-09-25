@@ -1,7 +1,10 @@
 # TODO:
 
-* Generate 2D canvas for leaves.
-* Outline mode.
+* Multiple leaves per texture.
+* Leaf jitter.
+* Leaf Gradients.
+* Leaf clipping.
+
 * Export model
 * Save design to local filesystem.
 * Research algorithms.

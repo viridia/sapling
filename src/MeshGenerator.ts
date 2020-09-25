@@ -2,6 +2,7 @@ import {
   BackSide,
   BufferGeometry,
   CanvasTexture,
+  Color,
   DoubleSide,
   Float32BufferAttribute,
   Group,
@@ -373,15 +374,73 @@ export class MeshGenerator {
       ctx.fillStyle = 'blue';
       ctx.lineWidth = 2.0;
       ctx.lineJoin = 'round';
+      const leaf = this.createLeafPath(ctx);
+
+      ctx.resetTransform();
       ctx.translate(64, 40);
-      this.createLeafPath(ctx);
+      this.drawLeafPath(ctx, leaf);
       ctx.stroke();
+
+      ctx.resetTransform();
+      ctx.translate(64, 40);
+      ctx.rotate(Math.PI / 2);
+      this.drawLeafPath(ctx, leaf);
+      ctx.stroke();
+
+      ctx.resetTransform();
+      ctx.translate(64, 40);
+      ctx.rotate(-Math.PI / 2);
+      this.drawLeafPath(ctx, leaf);
+      // ctx.rotate(-Math.PI / 2);
+      // this.drawLeafPath(ctx, leaf);
+      ctx.stroke();
+
+      const gradient1 = ctx.createLinearGradient(0, 0, 10, 0);
+      gradient1.addColorStop(0, new Color(0x00dd00).getStyle());
+      gradient1.addColorStop(1, new Color(0x00bb00).getStyle());
+
+      const gradient2 = ctx.createLinearGradient(0, 0, -10, 0);
+      gradient2.addColorStop(0, new Color(0x00cc00).getStyle());
+      gradient2.addColorStop(1, new Color(0x00aa00).getStyle());
+
+      // Add three color stops
+
+      // Set the fill style and draw a rectangle
+      // ctx.fillStyle = gradient;
+
+      ctx.resetTransform();
+      ctx.translate(64, 40);
+      ctx.fillStyle = gradient1;
+      this.drawLeafPath(ctx, leaf, 'left');
+      ctx.fill();
+      ctx.fillStyle = gradient2;
+      this.drawLeafPath(ctx, leaf, 'right');
+      ctx.fill();
+
+      ctx.resetTransform();
+      ctx.translate(64, 40);
+      ctx.rotate(Math.PI / 2);
+      ctx.fillStyle = gradient1;
+      this.drawLeafPath(ctx, leaf, 'left');
+      ctx.fill();
+      ctx.fillStyle = gradient2;
+      this.drawLeafPath(ctx, leaf, 'right');
+      ctx.fill();
+
+      ctx.resetTransform();
+      ctx.translate(64, 40);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = gradient1;
+      this.drawLeafPath(ctx, leaf, 'left');
+      ctx.fill();
+      ctx.fillStyle = gradient2;
+      this.drawLeafPath(ctx, leaf, 'right');
       ctx.fill();
     }
   }
 
   // Create a leaf path
-  private createLeafPath(ctx: CanvasRenderingContext2D) {
+  private createLeafPath(ctx: CanvasRenderingContext2D): LeafSplineSegment[] {
     const length = this.properties.leaf.length.value;
     const baseWidth = this.properties.leaf.baseWidth.value;
     const baseTaper = this.properties.leaf.baseTaper.value;
@@ -402,17 +461,38 @@ export class MeshGenerator {
 
     const segments: LeafSplineSegment[] = this.divideSegments(segment, numSegments);
     this.addSerration(segments, length);
+    return segments;
+  }
 
+  private drawLeafPath(
+    ctx: CanvasRenderingContext2D,
+    segments: LeafSplineSegment[],
+    side: 'left' | 'right' | 'both' = 'both'
+  ) {
     ctx.beginPath();
-    ctx.moveTo(segment.x0, segment.y0);
-    segments.forEach(s => {
-      ctx.lineTo(s.x0, s.y0);
-      ctx.bezierCurveTo(s.x1, s.y1, s.x2, s.y2, s.x3, s.y3);
-    });
-    segments.reverse().forEach(s => {
-      ctx.lineTo(-s.x3, s.y3);
-      ctx.bezierCurveTo(-s.x2, s.y2, -s.x1, s.y1, -s.x0, s.y0);
-    });
+    ctx.moveTo(segments[0].x0, segments[0].y0);
+
+    if (side === 'left' || side === 'both') {
+      segments.forEach(s => {
+        ctx.lineTo(s.x0, s.y0);
+        ctx.bezierCurveTo(s.x1, s.y1, s.x2, s.y2, s.x3, s.y3);
+      });
+    } else {
+      const lastSegment = segments[segments.length - 1];
+      ctx.lineTo(lastSegment.x3, lastSegment.y3);
+    }
+
+    if (side === 'right' || side === 'both') {
+      const reverse = segments.slice().reverse();
+      reverse.forEach(s => {
+        ctx.lineTo(-s.x3, s.y3);
+        ctx.bezierCurveTo(-s.x2, s.y2, -s.x1, s.y1, -s.x0, s.y0);
+      });
+    } else {
+      const firstSegment = segments[0];
+      ctx.lineTo(firstSegment.x0, firstSegment.y0);
+    }
+
     ctx.closePath();
   }
 
@@ -480,7 +560,7 @@ export class MeshGenerator {
       // The tangent of the curve at the end of the segment.
       const tangent = new Vector2(s.x3 - s.x0, s.y3 - s.y0).normalize();
       const normal = new Vector2(tangent.y, -tangent.x);
-      const rake = baseRake + i / segments.length * (tipRake - baseRake) - 0.5;
+      const rake = baseRake + (i / segments.length) * (tipRake - baseRake) - 0.5;
       const displacement = normal
         .clone()
         .multiplyScalar(pointyness)
