@@ -22,10 +22,10 @@ void main() {
 `;
 
 export class OutlineMaterial extends ShaderMaterial {
-  constructor() {
+  constructor(width: number) {
     super({
       uniforms: {
-        outlineThickness: { value: 0.005 },
+        outlineThickness: { value: width },
       },
       vertexShader: outlineVert,
       fragmentShader: outlineFrag,

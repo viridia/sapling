@@ -24,7 +24,7 @@ export class Property {
   }
 
   /** Update the value of the property. */
-  update(value: number) {
+  public update(value: number) {
     if (this.data !== value) {
       this.data = value;
       this.emit();
@@ -32,18 +32,22 @@ export class Property {
   }
 
   /** Return the current value of the property. */
-  get value(): number {
+  public get value(): number {
     return this.data;
   }
 
-  emit() {
+  public emit() {
     this.listeners.forEach(listener => listener(this.data));
     globalListeners.forEach(listener => listener(this));
   }
 
-  subscribe(callback: (value: number) => void): UnsubscribeCallback {
+  public subscribe(callback: (value: number) => void): UnsubscribeCallback {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
+  }
+
+  public reset() {
+    this.update(this.defn.init || 0);
   }
 
   public get type() {
