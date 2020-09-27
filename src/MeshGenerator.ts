@@ -57,7 +57,7 @@ export class MeshGenerator {
       radius: new Property({ type: 'float', init: 0.3, minVal: 0.01, maxVal: 1 }),
     },
     leaf: {
-      length: new Property({ type: 'float', init: 60, minVal: 20, maxVal: 128 }),
+      length: new Property({ type: 'float', init: 60, minVal: 20, maxVal: 128, increment: 1 }),
       numSegments: new Property({ type: 'integer', init: 1, minVal: 1, maxVal: 12, increment: 1 }),
       serration: new Property({ type: 'float', init: 0, minVal: 0, maxVal: 1 }),
       baseWidth: new Property({ type: 'float', init: 0.6, minVal: 0.01, maxVal: 1 }),
@@ -66,6 +66,10 @@ export class MeshGenerator {
       tipWidth: new Property({ type: 'float', init: 0.2, minVal: 0.01, maxVal: 1 }),
       tipTaper: new Property({ type: 'float', init: 0.2, minVal: -1, maxVal: 1 }),
       tipRake: new Property({ type: 'float', init: 0, minVal: 0, maxVal: 1 }),
+      colorLeftInner: new Property({ type: 'rgb', init: 0x00dd00 }),
+      colorLeftOuter: new Property({ type: 'rgb', init: 0x00bb00 }),
+      colorRightInner: new Property({ type: 'rgb', init: 0x00cc00 }),
+      colorRightOuter: new Property({ type: 'rgb', init: 0x00aa00 }),
     },
   };
 
@@ -139,8 +143,15 @@ export class MeshGenerator {
         for (const propId in group) {
           const value = group[propId];
           const prop = props[propId];
-          if (typeof value === 'number' && (prop.type === 'float' || prop.type === 'integer')) {
-            prop.update(value);
+          if (
+            typeof value === 'number' &&
+            prop &&
+            (prop.type === 'float' ||
+              prop.type === 'integer' ||
+              prop.type === 'rgb' ||
+              prop.type === 'rgba')
+          ) {
+            prop.update(value, true);
           }
         }
       }
@@ -391,22 +402,17 @@ export class MeshGenerator {
       ctx.translate(64, 40);
       ctx.rotate(-Math.PI / 2);
       this.drawLeafPath(ctx, leaf);
-      // ctx.rotate(-Math.PI / 2);
-      // this.drawLeafPath(ctx, leaf);
       ctx.stroke();
 
+      const props = this.properties.leaf;
+
       const gradient1 = ctx.createLinearGradient(0, 0, 10, 0);
-      gradient1.addColorStop(0, new Color(0x00dd00).getStyle());
-      gradient1.addColorStop(1, new Color(0x00bb00).getStyle());
+      gradient1.addColorStop(0, new Color(props.colorLeftInner.value).getStyle());
+      gradient1.addColorStop(1, new Color(props.colorLeftOuter.value).getStyle());
 
       const gradient2 = ctx.createLinearGradient(0, 0, -10, 0);
-      gradient2.addColorStop(0, new Color(0x00cc00).getStyle());
-      gradient2.addColorStop(1, new Color(0x00aa00).getStyle());
-
-      // Add three color stops
-
-      // Set the fill style and draw a rectangle
-      // ctx.fillStyle = gradient;
+      gradient2.addColorStop(0, new Color(props.colorRightInner.value).getStyle());
+      gradient2.addColorStop(1, new Color(props.colorRightOuter.value).getStyle());
 
       ctx.resetTransform();
       ctx.translate(64, 40);

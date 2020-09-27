@@ -45,7 +45,7 @@ export class SceneRenderer {
 
     // Setup window resize callback.
     window.addEventListener('resize', this.handleResize);
-    window.addEventListener('wheel', this.handleWheel);
+    this.renderer.domElement.addEventListener('wheel', this.handleWheel);
 
     this.start();
   }
@@ -53,7 +53,7 @@ export class SceneRenderer {
   public dispose() {
     this.stop();
     window.removeEventListener('resize', this.handleResize);
-    window.removeEventListener('wheel', this.handleWheel);
+    this.renderer.domElement.removeEventListener('wheel', this.handleWheel);
     this.mount.removeChild(this.renderer.domElement);
     this.pool.dispose();
   }

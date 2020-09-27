@@ -68,15 +68,19 @@ const ComboSliderContainer = styled.div`
   display: flex;
   position: relative;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex: 1;
   font-size: 14px;
-  text-align: center;
   vertical-align: middle;
   line-height: calc(100%);
 `;
 
 const ComboSliderName = styled.span`
+  color: ${colors.comboLabel};
+  flex: 1;
+  align-self: stretch;
+  line-height: 22px;
+  font-size: 12px;
   margin-right: 4px;
 `;
 
@@ -224,19 +228,22 @@ export const ComboSlider: FC<Props> = ({
 
   const onInputKey = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.keyCode === 13 && inputEl.current) {
+      if (e.key === 'Enter' && inputEl.current) {
         e.preventDefault();
         const newValue = parseFloat(inputEl.current.value);
         if (!isNaN(newValue)) {
           setValue(newValue);
           setTextActive(false);
         }
-      } else if (e.keyCode === 27) {
+      } else if (e.key === 'Escape') {
         e.preventDefault();
+        if (inputEl.current) {
+          inputEl.current.value = value.toString();
+        }
         setTextActive(false);
       }
     },
-    [setValue]
+    [setValue, value, inputEl]
   );
 
   const percent = enumVals ? 100 : ((value - min) * 100) / (max - min);
@@ -259,7 +266,7 @@ export const ComboSlider: FC<Props> = ({
         onHeld={buttonMethods.onLeftHeld}
       />
       <ComboSliderContainer {...dragMethods} className="center" onDoubleClick={onDoubleClick} >
-        <ComboSliderName className="name">{name}: </ComboSliderName>
+        <ComboSliderName className="name">{name}</ComboSliderName>
         <ComboSliderValue className="value">{displayVal}</ComboSliderValue>
         <ComboSliderInput
           type="text"

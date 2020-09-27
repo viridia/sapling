@@ -14,6 +14,26 @@ const ControlPanelElt = styled.aside`
   font-weight: 500;
   font-size: 16px;
   padding: 16px;
+  overflow-y: auto;
+
+  &::-webkit-scrollbar {
+    background-color: transparent;
+    width: 7px;
+    height: 7px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb:window-inactive {
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+
+  &::-webkit-scrollbar-corner {
+    background-color: transparent;
+  }
 `;
 
 interface Props {

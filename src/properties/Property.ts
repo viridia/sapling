@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 /** Property metadata for editing. */
 export interface PropertyDefn {
-  type: 'integer' | 'float';
+  type: 'integer' | 'float' | 'rgb' | 'rgba';
   init?: number;
   minVal?: number;
   maxVal?: number;
@@ -17,17 +17,20 @@ export type UnsubscribeCallback = () => void;
 /** An editable property that notifies listeners. */
 export class Property {
   private data: number;
-  private listeners = new Set<(value: number) => void>();
+  private listeners = new Set<(value: number, jump: boolean) => void>();
 
   constructor(private defn: PropertyDefn) {
     this.data = defn.init || 0;
   }
 
-  /** Update the value of the property. */
-  public update(value: number) {
+  /** Update the value of the property.
+      @param value The new value of the property.
+      @param jump .
+  */
+  public update(value: number, jump = false) {
     if (this.data !== value) {
       this.data = value;
-      this.emit();
+      this.emit(jump);
     }
   }
 
@@ -36,12 +39,12 @@ export class Property {
     return this.data;
   }
 
-  public emit() {
-    this.listeners.forEach(listener => listener(this.data));
+  public emit(jump: boolean) {
+    this.listeners.forEach(listener => listener(this.data, jump));
     globalListeners.forEach(listener => listener(this));
   }
 
-  public subscribe(callback: (value: number) => void): UnsubscribeCallback {
+  public subscribe(callback: (value: number, jump: boolean) => void): UnsubscribeCallback {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
   }
@@ -83,10 +86,7 @@ export interface PropertyMap {
 export function usePropertyValue<T>(prop: Property): number {
   const [, updateState] = useState({});
 
-  useEffect(() => {
-    const disconnect = prop.subscribe(() => updateState({}));
-    return () => disconnect();
-  }, [prop]);
+  useEffect(() => prop.subscribe(() => updateState({})), [prop]);
 
   return prop.value;
 }
