@@ -61,6 +61,11 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
     return () => window.removeEventListener('unload', onUnload);
   }, [generator]);
 
+  const onClickSave = useCallback(() => {
+    generator.toGltf();
+    // const fs: FileSystem = (window as any).requestFileSystem();
+  }, [generator]);
+
   return (
     <ControlPanelElt>
       {Object.keys(generator.properties).map(key => {
@@ -75,6 +80,7 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
         );
       })}
       <Button onClick={onClickReset}>Reset</Button>
+      <Button onClick={onClickSave}>Download&hellip;</Button>
     </ControlPanelElt>
   );
 };

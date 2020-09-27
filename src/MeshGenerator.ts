@@ -8,7 +8,7 @@ import {
   Group,
   Matrix4,
   Mesh,
-  MeshLambertMaterial,
+  MeshStandardMaterial,
   Vector2,
   Vector3,
 } from 'three';
@@ -19,6 +19,9 @@ import {
   PropertyMap,
   UnsubscribeCallback,
 } from './properties/Property';
+import download from 'downloadjs';
+
+const GLTFExporter = require('./third-party/GLTFExporter.js');
 
 interface LeafSplineSegment {
   x0: number;
@@ -37,13 +40,13 @@ export class MeshGenerator {
   private unsubscribe: UnsubscribeCallback;
 
   private barkGeometry = new BufferGeometry();
-  private barkMaterial = new MeshLambertMaterial({ color: 0xa08000 });
+  private barkMaterial = new MeshStandardMaterial({ color: 0xa08000 });
   private barkOutlineMaterial = new OutlineMaterial(0.008);
   private barkMesh: Mesh;
   private barkOutlineMesh: Mesh;
 
   private leafGeometry = new BufferGeometry();
-  private leafMaterial = new MeshLambertMaterial();
+  private leafMaterial = new MeshStandardMaterial();
   private leafMesh: Mesh;
   private leafTexture: CanvasTexture;
 
@@ -156,6 +159,19 @@ export class MeshGenerator {
         }
       }
     }
+  }
+
+  public toGltf() {
+    // Add cusotm data
+    this.group.userData = { 'sapling': this.toJson() };
+    this.barkOutlineMaterial.userData = { 'outline': 0.008 };
+
+    // Instantiate a exporter
+    const exporter = new GLTFExporter();
+    exporter.parse(this.group, (gltf: any) => {
+      const name = 'tree';
+      download(gltf, `${name}.glb`, 'model/gltf-binary');
+    }, { binary: true });
   }
 
   public reset() {
@@ -406,11 +422,11 @@ export class MeshGenerator {
 
       const props = this.properties.leaf;
 
-      const gradient1 = ctx.createLinearGradient(0, 0, 10, 0);
+      const gradient1 = ctx.createLinearGradient(0, 0, 15, 0);
       gradient1.addColorStop(0, new Color(props.colorLeftInner.value).getStyle());
       gradient1.addColorStop(1, new Color(props.colorLeftOuter.value).getStyle());
 
-      const gradient2 = ctx.createLinearGradient(0, 0, -10, 0);
+      const gradient2 = ctx.createLinearGradient(0, 0, -15, 0);
       gradient2.addColorStop(0, new Color(props.colorRightInner.value).getStyle());
       gradient2.addColorStop(1, new Color(props.colorRightOuter.value).getStyle());
 
