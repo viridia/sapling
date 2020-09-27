@@ -9,6 +9,7 @@ import {
   Matrix4,
   Mesh,
   MeshStandardMaterial,
+  Scene,
   Vector2,
   Vector3,
 } from 'three';
@@ -161,17 +162,30 @@ export class MeshGenerator {
     }
   }
 
-  public toGltf() {
-    // Add cusotm data
-    this.group.userData = { 'sapling': this.toJson() };
+  public downloadGltf(name: string) {
+    const binary = true;
+
+    // Temporary scene containing just what we want to export.
+    const scene = new Scene();
+    scene.name = 'sapling';
+    scene.userData = { 'sapling': this.toJson() };
+    // Do this instead of calling 'add' to prevent breakage of the original scene hierarchy.
+    scene.children.push(this.barkMesh, this.barkOutlineMesh, this.leafMesh);
+
+    // Add custom data
     this.barkOutlineMaterial.userData = { 'outline': 0.008 };
 
     // Instantiate a exporter
     const exporter = new GLTFExporter();
-    exporter.parse(this.group, (gltf: any) => {
-      const name = 'tree';
-      download(gltf, `${name}.glb`, 'model/gltf-binary');
-    }, { binary: true });
+    if (binary) {
+      exporter.parse(scene, (gltf: any) => {
+        download(gltf, `${name}.glb`, 'model/gltf-binary');
+      }, { binary: true });
+    } else {
+      exporter.parse(scene, (gltf: any) => {
+        download(JSON.stringify(gltf), `${name}.gltf`, 'model/gltf-binary');
+      }, { binary: false });
+    }
   }
 
   public reset() {

@@ -19,7 +19,22 @@ export const colors = {
   comboText: '#ccc',
   comboTextEdit: '#eee',
 
+  dialogBg: '#334',
+  dialogBodyText: '#aaa',
+  dialogBorder: '#000',
+  dialogHeaderBg: '#223',
+  dialogHeaderText: '#ccc',
+  dialogShadow: '#0004',
+  dialogSepLight: '#444',
+  dialogSepDark: '#222',
+
   gradientSliderBorder: '#1c1c1c',
+
+  textInputBg: '#223',
+  textInputBorder: '#111',
+  textInputColor: '#ccc',
+  textInputSelectionColor: '#eee',
+  textInputSelectionBg: '#9595d9',
 };
 
 export const fontFamilies = {
