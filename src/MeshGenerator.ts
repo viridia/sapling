@@ -58,6 +58,7 @@ export class MeshGenerator {
     root: {
       seed: new Property({ type: 'integer', init: 200, minVal: 1, maxVal: 100000, increment: 1 }),
       radius: new Property({ type: 'float', init: 0.3, minVal: 0.01, maxVal: 1 }),
+      taper: new Property({ type: 'float', init: 0.7, minVal: 0, maxVal: 1 }),
       color: new Property({ type: 'rgb', init: 0xa08000 }),
     },
     leaf: {
@@ -71,10 +72,10 @@ export class MeshGenerator {
       tipWidth: new Property({ type: 'float', init: 0.2, minVal: 0.01, maxVal: 1 }),
       tipTaper: new Property({ type: 'float', init: 0.2, minVal: -1, maxVal: 1 }),
       tipRake: new Property({ type: 'float', init: 0, minVal: 0, maxVal: 1 }),
-      colorLeftInner: new Property({ type: 'rgb', init: 0x00dd00 }),
-      colorLeftOuter: new Property({ type: 'rgb', init: 0x00bb00 }),
-      colorRightInner: new Property({ type: 'rgb', init: 0x00cc00 }),
-      colorRightOuter: new Property({ type: 'rgb', init: 0x00aa00 }),
+      colorLeftInner: new Property({ type: 'rgb', init: 0x444444 }),
+      colorLeftOuter: new Property({ type: 'rgb', init: 0x444444 }),
+      colorRightInner: new Property({ type: 'rgb', init: 0x444444 }),
+      colorRightOuter: new Property({ type: 'rgb', init: 0x444444 }),
     },
   };
 
@@ -211,6 +212,7 @@ export class MeshGenerator {
 
     const positionArray: number[] = [];
     const indexArray: number[] = [];
+    this.leafMeshInstances.length = 0;
     this.growBranch(
       new Matrix4(),
       positionArray,
@@ -269,11 +271,8 @@ export class MeshGenerator {
     radius: number,
     numDivisions: number
   ) {
-    const taper = 0.6;
-
+    const taper = this.properties.root.taper.value;
     const prevAngles: number[] = [];
-
-    // angleQueue
 
     // Note: Lengths are presumed to be in meters
     const segmentLength = 0.5;

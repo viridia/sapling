@@ -7,6 +7,7 @@ import {
   Group,
 } from 'three';
 import { MeshGenerator } from './MeshGenerator';
+import { addGlobalListener, UnsubscribeCallback } from './properties/Property';
 import { ResourcePool } from './ResourcePool';
 
 export class SceneRenderer {
@@ -19,6 +20,7 @@ export class SceneRenderer {
   private group = new Group();
   private groupPool = new ResourcePool();
   private cameraAngle: number = 0;
+  private unsubscribe: UnsubscribeCallback;
 
   constructor(private mount: HTMLElement, private generator: MeshGenerator) {
     this.render = this.render.bind(this);
@@ -47,10 +49,15 @@ export class SceneRenderer {
     window.addEventListener('resize', this.handleResize);
     this.renderer.domElement.addEventListener('wheel', this.handleWheel);
 
+    this.unsubscribe = addGlobalListener(() => {
+      this.sceneChanged();
+    });
+
     this.start();
   }
 
   public dispose() {
+    this.unsubscribe();
     this.stop();
     window.removeEventListener('resize', this.handleResize);
     this.renderer.domElement.removeEventListener('wheel', this.handleWheel);
@@ -94,13 +101,17 @@ export class SceneRenderer {
       this.generator.generate();
     }
 
+    this.frameId = null;
     this.renderer.render(this.scene, this.camera);
-    setTimeout(() => {
-      this.frameId = window.requestAnimationFrame(this.render);
-    }, 1000 / 40);
   }
 
   private start() {
+    if (!this.frameId) {
+      this.frameId = window.requestAnimationFrame(this.render);
+    }
+  }
+
+  private sceneChanged() {
     if (!this.frameId) {
       this.frameId = window.requestAnimationFrame(this.render);
     }
@@ -130,5 +141,6 @@ export class SceneRenderer {
   private handleWheel(e: WheelEvent) {
     this.cameraAngle -= e.deltaX / 200;
     this.cameraAngle = this.cameraAngle % (Math.PI * 2);
+    this.sceneChanged();
   }
 }
