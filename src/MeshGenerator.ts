@@ -1,5 +1,6 @@
 import {
   BackSide,
+  Box2,
   BufferGeometry,
   CanvasTexture,
   Color,
@@ -20,20 +21,14 @@ import {
   PropertyMap,
   UnsubscribeCallback,
 } from './properties/Property';
+import Prando from 'prando';
 import download from 'downloadjs';
+import { buildLeafPath, calcLeafBounds } from './genLeafShape';
+import { LeafSplineSegment, LeafStamp } from './leaf';
+import { drawLeafTexture } from './genLeafTexture';
+import { minimizeShadow } from './collision';
 
 const GLTFExporter = require('./third-party/GLTFExporter.js');
-
-interface LeafSplineSegment {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  x3: number;
-  y3: number;
-}
 
 /** Class which generates a collection of meshes and geometry for the tree model. */
 export class MeshGenerator {
@@ -50,20 +45,26 @@ export class MeshGenerator {
   private leafMaterial = new MeshStandardMaterial();
   private leafMesh: Mesh;
   private leafTexture: CanvasTexture;
+  private leafMeshInstances: Matrix4[] = [];
 
   private group: Group = new Group();
 
   public canvas: HTMLCanvasElement;
 
+  private rnd = new Prando(200);
+
   // This defines the list of editable properties for the tree.
   public properties: PropertyMap = {
     root: {
+      seed: new Property({ type: 'integer', init: 200, minVal: 1, maxVal: 100000, increment: 1 }),
       radius: new Property({ type: 'float', init: 0.3, minVal: 0.01, maxVal: 1 }),
+      color: new Property({ type: 'rgb', init: 0xa08000 }),
     },
     leaf: {
       length: new Property({ type: 'float', init: 60, minVal: 20, maxVal: 128, increment: 1 }),
       numSegments: new Property({ type: 'integer', init: 1, minVal: 1, maxVal: 12, increment: 1 }),
       serration: new Property({ type: 'float', init: 0, minVal: 0, maxVal: 1 }),
+      jitter: new Property({ type: 'float', init: 0, minVal: 0, maxVal: 1 }),
       baseWidth: new Property({ type: 'float', init: 0.6, minVal: 0.01, maxVal: 1 }),
       baseTaper: new Property({ type: 'float', init: 0, minVal: -1, maxVal: 1 }),
       baseRake: new Property({ type: 'float', init: 0, minVal: 0, maxVal: 1 }),
@@ -100,8 +101,6 @@ export class MeshGenerator {
     this.canvas.width = 128;
     this.canvas.height = 128;
     this.canvas.style.zIndex = '100';
-    this.drawTexture();
-
     this.leafTexture = new CanvasTexture(this.canvas);
     this.leafMaterial.map = this.leafTexture;
   }
@@ -168,23 +167,31 @@ export class MeshGenerator {
     // Temporary scene containing just what we want to export.
     const scene = new Scene();
     scene.name = 'sapling';
-    scene.userData = { 'sapling': this.toJson() };
+    scene.userData = { sapling: this.toJson() };
     // Do this instead of calling 'add' to prevent breakage of the original scene hierarchy.
     scene.children.push(this.barkMesh, this.barkOutlineMesh, this.leafMesh);
 
     // Add custom data
-    this.barkOutlineMaterial.userData = { 'outline': 0.008 };
+    this.barkOutlineMaterial.userData = { outline: 0.008 };
 
     // Instantiate a exporter
     const exporter = new GLTFExporter();
     if (binary) {
-      exporter.parse(scene, (gltf: any) => {
-        download(gltf, `${name}.glb`, 'model/gltf-binary');
-      }, { binary: true });
+      exporter.parse(
+        scene,
+        (gltf: any) => {
+          download(gltf, `${name}.glb`, 'model/gltf-binary');
+        },
+        { binary: true }
+      );
     } else {
-      exporter.parse(scene, (gltf: any) => {
-        download(JSON.stringify(gltf), `${name}.gltf`, 'model/gltf-binary');
-      }, { binary: false });
+      exporter.parse(
+        scene,
+        (gltf: any) => {
+          download(JSON.stringify(gltf), `${name}.gltf`, 'model/gltf-binary');
+        },
+        { binary: false }
+      );
     }
   }
 
@@ -200,9 +207,18 @@ export class MeshGenerator {
   public generate() {
     this.modified = false;
 
+    this.rnd = new Prando(this.properties.root.seed.value);
+
     const positionArray: number[] = [];
     const indexArray: number[] = [];
-    this.growBranch(new Matrix4(), positionArray, indexArray);
+    this.growBranch(
+      new Matrix4(),
+      positionArray,
+      indexArray,
+      3,
+      this.properties.root.radius.value,
+      1
+    );
 
     if (this.barkGeometry) {
       this.barkGeometry.dispose();
@@ -217,39 +233,108 @@ export class MeshGenerator {
     this.barkGeometry.setAttribute('position', new Float32BufferAttribute(positionArray, 3));
     this.barkGeometry.computeVertexNormals();
     this.barkMesh.geometry = this.barkGeometry;
+    this.barkMaterial.color = new Color(this.properties.root.color.value);
     this.barkOutlineMesh.geometry = this.barkGeometry;
 
-    this.createLeafMesh();
-    this.drawTexture();
+    // Compute the outline of a single leaf
+    const leafOutline = buildLeafPath(
+      {
+        length: this.properties.leaf.length.value,
+        baseWidth: this.properties.leaf.baseWidth.value,
+        baseTaper: this.properties.leaf.baseTaper.value,
+        tipWidth: this.properties.leaf.tipWidth.value,
+        tipTaper: this.properties.leaf.tipTaper.value,
+        numSegments: this.properties.leaf.numSegments.value,
+        baseRake: this.properties.leaf.baseRake.value,
+        tipRake: this.properties.leaf.tipRake.value,
+        serration: this.properties.leaf.serration.value,
+        jitter: this.properties.leaf.jitter.value,
+      },
+      this.rnd
+    );
+    const stamps = this.createLeafStamps();
+    const bounds = calcLeafBounds(leafOutline, stamps);
+
+    this.createLeafMesh(bounds);
+    this.drawTexture(leafOutline, stamps, bounds);
     this.leafTexture.needsUpdate = true;
     return this.group;
   }
 
-  private growBranch(transform: Matrix4, positionArray: number[], indexArray: number[]) {
+  private growBranch(
+    transform: Matrix4,
+    positionArray: number[],
+    indexArray: number[],
+    length: number,
+    radius: number,
+    numDivisions: number
+  ) {
+    const taper = 0.6;
+
+    const prevAngles: number[] = [];
+
+    // angleQueue
+
     // Note: Lengths are presumed to be in meters
-    let radius = this.properties.root.radius.value;
-    const segmentLength = 1;
-    const numSegmentsAlong = 3; // Number of polygon faces along the branch length.
+    const segmentLength = 0.5;
     const numSectors = 8; // Number of polygon faces around the circumference
+    const initialBranchSpacing = 0.3 * length;
+    const branchSpacing = 0.02 * length;
+    let nextBranch = initialBranchSpacing;
 
     // Add the ring of vertices at the base of the branch.
-    let ringIndex = positionArray.length / 3;
+    let prevRingIndex = positionArray.length / 3;
+    let ringIndex = prevRingIndex;
     this.addSegmentNodeVertices(positionArray, radius, numSectors, transform);
 
     // Add additional rings and connect the segments.
-    for (let s = 0; s < numSegmentsAlong; s += 1) {
-      radius *= 0.7;
-      transform.multiply(new Matrix4().makeTranslation(0, segmentLength, 0));
+    let extent = 0;
+    for (; extent < length; extent += segmentLength) {
+      radius *= taper;
+
+      if (numDivisions > 0) {
+        while (nextBranch >= extent && nextBranch <= extent + segmentLength) {
+          const dy = nextBranch - extent;
+          let yAngle = minimizeShadow(this.rnd, prevAngles);
+          const translateY = new Matrix4().makeTranslation(0, dy, 0);
+          const rotationY = new Matrix4().makeRotationY(yAngle);
+          const rotationX = new Matrix4().makeRotationX(Math.PI * 0.6);
+          const branchTransform = transform
+            .clone()
+            .multiply(translateY)
+            .multiply(rotationX)
+            .premultiply(rotationY);
+          this.growBranch(
+            branchTransform,
+            positionArray,
+            indexArray,
+            (length - nextBranch) * 0.3,
+            radius * 0.5,
+            numDivisions - 1
+          );
+
+          nextBranch += branchSpacing;
+          prevAngles.unshift(yAngle);
+          if (prevAngles.length > 5) {
+            prevAngles.length = 5;
+          }
+        }
+      }
+
+      transform.multiply(
+        new Matrix4().makeTranslation(0, Math.min(segmentLength, length - extent), 0)
+      );
+      ringIndex = positionArray.length / 3;
       this.addSegmentNodeVertices(positionArray, radius, numSectors, transform);
-      this.addSegmentFaces(indexArray, numSectors, ringIndex);
-      ringIndex += numSectors;
+      this.addSegmentFaces(indexArray, numSectors, prevRingIndex, ringIndex);
+      prevRingIndex = ringIndex;
     }
 
     // Add endcap
+    ringIndex = positionArray.length / 3;
     transform.multiply(new Matrix4().makeTranslation(0, segmentLength / 50, 0));
     this.addSegmentNodeVertices(positionArray, radius, numSectors, transform);
-    this.addSegmentFaces(indexArray, numSectors, ringIndex);
-    ringIndex += numSectors;
+    this.addSegmentFaces(indexArray, numSectors, prevRingIndex, ringIndex);
 
     // Endpoint
     transform.multiply(new Matrix4().makeTranslation(0, segmentLength / 10, 0));
@@ -259,10 +344,23 @@ export class MeshGenerator {
       const i2 = (i + 1) % numSectors;
       indexArray.push(ringIndex + i, ringIndex + i2, endpointIndex);
     }
+
+    if (numDivisions === 0) {
+      this.leafMeshInstances.push(
+        transform
+          .clone()
+          .scale(new Vector3(length + .1, length + .1, length + .1))
+          .multiply(new Matrix4().makeRotationX(-Math.PI / 2))
+      );
+    }
   }
 
-  private addSegmentFaces(indexArray: number[], numSectors: number, prevRingIndex: number) {
-    let nextRingIndex = prevRingIndex + numSectors;
+  private addSegmentFaces(
+    indexArray: number[],
+    numSectors: number,
+    prevRingIndex: number,
+    nextRingIndex: number
+  ) {
     for (let i = 0; i < numSectors; i += 1) {
       const i2 = (i + 1) % numSectors;
       indexArray.push(prevRingIndex + i, prevRingIndex + i2, nextRingIndex + i);
@@ -292,65 +390,45 @@ export class MeshGenerator {
     positionArray.push(vertex.x, vertex.y, vertex.z);
   }
 
-  private createLeafMesh() {
+  private createLeafMesh(bounds: Box2) {
     const positionArray: number[] = [];
     const texCoordArray: number[] = [];
     const indexArray: number[] = [];
 
-    const transform = new Matrix4();
-    this.createLeafFaces(positionArray, texCoordArray, indexArray, transform, 0, 0.5, 0, 1, 1);
-    transform.multiply(new Matrix4().makeTranslation(0, 1, 0));
-    this.createLeafFaces(positionArray, texCoordArray, indexArray, transform, 0, 1, 1, 1, 1);
-    transform.multiply(new Matrix4().makeTranslation(0, 1, 0));
-    this.createLeafFaces(positionArray, texCoordArray, indexArray, transform, 0, 1.2, 0, 1, 1);
-    transform.multiply(new Matrix4().makeTranslation(0, 1, 0));
-    this.createLeafFaces(positionArray, texCoordArray, indexArray, transform, 0, -1, 0, 1, 1);
+    const scaledBounds = bounds.clone();
+    scaledBounds.min.divideScalar(128);
+    scaledBounds.max.divideScalar(128);
 
-    transform.identity();
-    transform.multiply(new Matrix4().makeRotationY(Math.PI));
-    this.createLeafFaces(positionArray, texCoordArray, indexArray, transform, 0, 0.5, 0.5, 1, 1);
-    transform.multiply(new Matrix4().makeTranslation(0, 1, 0));
-    this.createLeafFaces(positionArray, texCoordArray, indexArray, transform, 0.5, 0.5, 0.9, 1, 1);
-    transform.multiply(new Matrix4().makeTranslation(0, 1, 0));
-    this.createLeafFaces(
-      positionArray,
-      texCoordArray,
-      indexArray,
-      transform,
-      0.5,
-      -0.5,
-      -0.9,
-      1,
-      1
-    );
-    transform.multiply(new Matrix4().makeTranslation(0, 1, 0));
-    this.createLeafFaces(positionArray, texCoordArray, indexArray, transform, 0, -1.3, -0.5, 1, 1);
+    this.leafMeshInstances.forEach(li => {
+      this.createLeafFaces(scaledBounds, positionArray, texCoordArray, indexArray, li, 0.3, 0.1);
+    });
 
     this.leafGeometry = new BufferGeometry();
     this.leafGeometry.setIndex(indexArray);
     this.leafGeometry.setAttribute('position', new Float32BufferAttribute(positionArray, 3));
     this.leafGeometry.setAttribute('uv', new Float32BufferAttribute(texCoordArray, 2));
     this.leafGeometry.computeVertexNormals();
-
     this.leafMaterial.map = this.leafTexture;
     this.leafMesh.geometry = this.leafGeometry;
   }
 
   private createLeafFaces(
+    bounds: Box2,
     positionArray: number[],
     texCoordArray: number[],
     indexArray: number[],
     transform: Matrix4,
-    axialOffset: number,
     lateralDroop: number,
-    axialDroop: number,
-    width: number,
-    length: number
+    axialDroop: number
   ) {
+    const size = bounds.getSize(new Vector2());
+    const width = size.x;
+    const length = size.y;
+
     // Leaf-relative coordinates:
     // * z extends along the axis of the shoot
-    // * y is perpendicular up
-    // * X is perpendicular lateral
+    // * y is perpendicular up (normal to leaf face)
+    // * x is perpendicular lateral (tangent to leaf face)
 
     const index = positionArray.length / 3;
 
@@ -359,25 +437,29 @@ export class MeshGenerator {
     const sinAxial = Math.sin(axialDroop);
     const cosAxial = Math.cos(axialDroop);
 
-    // Size of leaf mesh: 4 x 4 quads
+    // Size of leaf mesh: 2 x 2 quads
     const numSteps = 2;
 
+    const zs = [bounds.min.y, 0, bounds.max.y];
+
     // Generate vertices
-    for (let dz = -0.5; dz <= 0.5; dz += 1 / numSteps) {
+    for (const dz of zs) {
+      const zt = 1 - (dz - bounds.min.y) / length;
+      const z = (dz > 0 ? cosAxial * dz : dz) * length;
       for (let dx = -0.5; dx <= 0.5; dx += 1 / numSteps) {
         const ax = -Math.abs(dx);
-        const az = -Math.max(0, dz);
-        const oz = dz + (Math.abs(dz) - 0.5) * axialOffset;
+        const az = -Math.max(0, dz) * length;
         const x = cosLateral * dx * width;
-        const y = sinLateral * ax * width + sinAxial * az * length;
-        const z = ((dz > 0 ? cosAxial : 1) * oz + 0.5) * length;
+        const y = sinLateral * ax * width + sinAxial * az;
 
         const vertex = new Vector3(x, y, z).applyMatrix4(transform);
         positionArray.push(vertex.x, vertex.y, vertex.z);
-        texCoordArray.push(dx + 0.5, 0.5 - oz);
+        texCoordArray.push(dx + 0.5, zt);
+
+        // We want the center fold to be a sharp crease, so we need extra vertices.
         if (dx === 0) {
           positionArray.push(vertex.x, vertex.y, vertex.z);
-          texCoordArray.push(dx + 0.5, 0.5 - oz);
+          texCoordArray.push(dx + 0.5, zt);
         }
       }
     }
@@ -394,229 +476,97 @@ export class MeshGenerator {
     }
   }
 
-  private drawTexture() {
-    const ctx = this.canvas.getContext('2d');
-    if (ctx) {
-      ctx.resetTransform();
-      ctx.globalAlpha = 0;
-      ctx.clearRect(0, 0, 128, 128);
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'green';
+  private createLeafStamps(): LeafStamp[] {
+    const result: LeafStamp[] = [];
 
-      for (let x = 0; x <= 128; x += 64) {
-        ctx.strokeRect(x, 0, x, 128);
-      }
-      for (let z = 0; z <= 128; z += 64) {
-        ctx.strokeRect(0, z, 128, z);
-      }
+    result.push({
+      angle: 0,
+      scale: 1,
+      translate: new Vector2(0, 0),
+    });
 
-      ctx.strokeStyle = 'black';
-      ctx.fillStyle = 'blue';
-      ctx.lineWidth = 2.0;
-      ctx.lineJoin = 'round';
-      const leaf = this.createLeafPath(ctx);
+    result.push({
+      angle: Math.PI * 0.4,
+      scale: 1,
+      translate: new Vector2(0, 0),
+    });
 
-      ctx.resetTransform();
-      ctx.translate(64, 40);
-      this.drawLeafPath(ctx, leaf);
-      ctx.stroke();
+    result.push({
+      angle: -Math.PI * 0.4,
+      scale: 1,
+      translate: new Vector2(0, 0),
+    });
 
-      ctx.resetTransform();
-      ctx.translate(64, 40);
-      ctx.rotate(Math.PI / 2);
-      this.drawLeafPath(ctx, leaf);
-      ctx.stroke();
+    result.push({
+      angle: Math.PI * 0.45,
+      scale: 1,
+      translate: new Vector2(0, -20),
+    });
 
-      ctx.resetTransform();
-      ctx.translate(64, 40);
-      ctx.rotate(-Math.PI / 2);
-      this.drawLeafPath(ctx, leaf);
-      ctx.stroke();
+    result.push({
+      angle: -Math.PI * 0.4,
+      scale: 1,
+      translate: new Vector2(0, -20),
+    });
 
-      const props = this.properties.leaf;
+    result.push({
+      angle: Math.PI * 0.35,
+      scale: 1,
+      translate: new Vector2(0, -40),
+    });
 
-      const gradient1 = ctx.createLinearGradient(0, 0, 15, 0);
-      gradient1.addColorStop(0, new Color(props.colorLeftInner.value).getStyle());
-      gradient1.addColorStop(1, new Color(props.colorLeftOuter.value).getStyle());
+    result.push({
+      angle: -Math.PI * 0.45,
+      scale: 1,
+      translate: new Vector2(0, -40),
+    });
 
-      const gradient2 = ctx.createLinearGradient(0, 0, -15, 0);
-      gradient2.addColorStop(0, new Color(props.colorRightInner.value).getStyle());
-      gradient2.addColorStop(1, new Color(props.colorRightOuter.value).getStyle());
+    result.push({
+      angle: Math.PI * 0.4,
+      scale: 1,
+      translate: new Vector2(0, -60),
+    });
 
-      ctx.resetTransform();
-      ctx.translate(64, 40);
-      ctx.fillStyle = gradient1;
-      this.drawLeafPath(ctx, leaf, 'left');
-      ctx.fill();
-      ctx.fillStyle = gradient2;
-      this.drawLeafPath(ctx, leaf, 'right');
-      ctx.fill();
+    result.push({
+      angle: -Math.PI * 0.35,
+      scale: 1,
+      translate: new Vector2(0, -60),
+    });
 
-      ctx.resetTransform();
-      ctx.translate(64, 40);
-      ctx.rotate(Math.PI / 2);
-      ctx.fillStyle = gradient1;
-      this.drawLeafPath(ctx, leaf, 'left');
-      ctx.fill();
-      ctx.fillStyle = gradient2;
-      this.drawLeafPath(ctx, leaf, 'right');
-      ctx.fill();
+    result.push({
+      angle: Math.PI * 0.37,
+      scale: 1,
+      translate: new Vector2(0, -80),
+    });
 
-      ctx.resetTransform();
-      ctx.translate(64, 40);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillStyle = gradient1;
-      this.drawLeafPath(ctx, leaf, 'left');
-      ctx.fill();
-      ctx.fillStyle = gradient2;
-      this.drawLeafPath(ctx, leaf, 'right');
-      ctx.fill();
-    }
-  }
+    result.push({
+      angle: -Math.PI * 0.41,
+      scale: 1,
+      translate: new Vector2(0, -80),
+    });
 
-  // Create a leaf path
-  private createLeafPath(ctx: CanvasRenderingContext2D): LeafSplineSegment[] {
-    const length = this.properties.leaf.length.value;
-    const baseWidth = this.properties.leaf.baseWidth.value;
-    const baseTaper = this.properties.leaf.baseTaper.value;
-    const tipWidth = this.properties.leaf.tipWidth.value;
-    const tipTaper = this.properties.leaf.tipTaper.value;
-    const numSegments = this.properties.leaf.numSegments.value;
+    result.push({
+      angle: Math.PI * 0.2,
+      scale: 1,
+      translate: new Vector2(0, 0),
+    });
 
-    const segment: LeafSplineSegment = {
-      x0: 0,
-      y0: 0,
-      x1: length * baseWidth,
-      y1: length * baseTaper,
-      x2: length * tipWidth,
-      y2: length * (1 - tipTaper),
-      x3: 0,
-      y3: length,
-    };
-
-    const segments: LeafSplineSegment[] = this.divideSegments(segment, numSegments);
-    this.addSerration(segments, length);
-    return segments;
-  }
-
-  private drawLeafPath(
-    ctx: CanvasRenderingContext2D,
-    segments: LeafSplineSegment[],
-    side: 'left' | 'right' | 'both' = 'both'
-  ) {
-    ctx.beginPath();
-    ctx.moveTo(segments[0].x0, segments[0].y0);
-
-    if (side === 'left' || side === 'both') {
-      segments.forEach(s => {
-        ctx.lineTo(s.x0, s.y0);
-        ctx.bezierCurveTo(s.x1, s.y1, s.x2, s.y2, s.x3, s.y3);
-      });
-    } else {
-      const lastSegment = segments[segments.length - 1];
-      ctx.lineTo(lastSegment.x3, lastSegment.y3);
-    }
-
-    if (side === 'right' || side === 'both') {
-      const reverse = segments.slice().reverse();
-      reverse.forEach(s => {
-        ctx.lineTo(-s.x3, s.y3);
-        ctx.bezierCurveTo(-s.x2, s.y2, -s.x1, s.y1, -s.x0, s.y0);
-      });
-    } else {
-      const firstSegment = segments[0];
-      ctx.lineTo(firstSegment.x0, firstSegment.y0);
-    }
-
-    ctx.closePath();
-  }
-
-  private divideSegments(segment: LeafSplineSegment, numDivisions: number): LeafSplineSegment[] {
-    const { x0, y0, x1, y1, x2, y2, x3, y3 } = segment;
-
-    if (numDivisions < 2) {
-      return [segment];
-    }
-
-    const result: LeafSplineSegment[] = [];
-
-    let t0: number;
-    let t1 = 0;
-    do {
-      t0 = t1;
-      t1 += 1 / numDivisions;
-
-      if (t1 >= 0.99) {
-        t1 = 1;
-      }
-
-      const u0 = 1.0 - t0;
-      const u1 = 1.0 - t1;
-
-      const qxa = x0 * u0 * u0 + x1 * 2 * t0 * u0 + x2 * t0 * t0;
-      const qxb = x0 * u1 * u1 + x1 * 2 * t1 * u1 + x2 * t1 * t1;
-      const qxc = x1 * u0 * u0 + x2 * 2 * t0 * u0 + x3 * t0 * t0;
-      const qxd = x1 * u1 * u1 + x2 * 2 * t1 * u1 + x3 * t1 * t1;
-
-      const qya = y0 * u0 * u0 + y1 * 2 * t0 * u0 + y2 * t0 * t0;
-      const qyb = y0 * u1 * u1 + y1 * 2 * t1 * u1 + y2 * t1 * t1;
-      const qyc = y1 * u0 * u0 + y2 * 2 * t0 * u0 + y3 * t0 * t0;
-      const qyd = y1 * u1 * u1 + y2 * 2 * t1 * u1 + y3 * t1 * t1;
-
-      const newSegment: LeafSplineSegment = {
-        x0: qxa * u0 + qxc * t0,
-        y0: qya * u0 + qyc * t0,
-
-        x1: qxa * u1 + qxc * t1,
-        y1: qya * u1 + qyc * t1,
-
-        x2: qxb * u0 + qxd * t0,
-        y2: qyb * u0 + qyd * t0,
-
-        x3: qxb * u1 + qxd * t1,
-        y3: qyb * u1 + qyd * t1,
-      };
-
-      result.push(newSegment);
-    } while (t1 < 1);
+    result.push({
+      angle: -Math.PI * 0.2,
+      scale: 1,
+      translate: new Vector2(0, 0),
+    });
 
     return result;
   }
 
-  private addSerration(segments: LeafSplineSegment[], length: number) {
-    const baseRake = this.properties.leaf.baseRake.value;
-    const tipRake = this.properties.leaf.tipRake.value;
-    const serration = this.properties.leaf.serration.value;
-    const pointyness = 40 * serration;
-
-    for (let i = 0; i < segments.length - 1; i += 1) {
-      const s = segments[i];
-
-      // The tangent of the curve at the end of the segment.
-      const tangent = new Vector2(s.x3 - s.x0, s.y3 - s.y0).normalize();
-      const normal = new Vector2(tangent.y, -tangent.x);
-      const rake = baseRake + (i / segments.length) * (tipRake - baseRake) - 0.5;
-      const displacement = normal
-        .clone()
-        .multiplyScalar(pointyness)
-        .add(tangent.clone().multiplyScalar((rake * length) / segments.length));
-
-      const p0 = new Vector2(s.x0, s.y0);
-      const d3 = new Vector2(s.x3, s.y3).sub(p0).dot(tangent);
-      const d1 = new Vector2(s.x1, s.y1).sub(p0).dot(tangent) / d3;
-      const d2 = new Vector2(s.x2, s.y2).sub(p0).dot(tangent) / d3;
-
-      s.x1 += d1 * displacement.x;
-      s.x2 += d2 * displacement.x;
-      s.x3 += displacement.x;
-
-      s.y1 += d1 * displacement.y;
-      s.y2 += d2 * displacement.y;
-      s.y3 += displacement.y;
-    }
-
-    segments[segments.length - 1].y3 += pointyness;
-    segments[segments.length - 1].y2 += pointyness;
+  private drawTexture(leaf: LeafSplineSegment[], stamps: LeafStamp[], bounds: Box2) {
+    const props = this.properties.leaf;
+    drawLeafTexture(this.canvas, leaf, stamps, bounds, {
+      colorLeftInner: props.colorLeftInner.value,
+      colorLeftOuter: props.colorLeftOuter.value,
+      colorRightInner: props.colorRightInner.value,
+      colorRightOuter: props.colorRightOuter.value,
+    });
   }
 }
