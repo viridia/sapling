@@ -8,6 +8,8 @@ interface LeafImageProps {
   colorRightOuter: number;
 }
 
+const showGrid = false;
+
 export function drawLeafTexture(
   canvas: HTMLCanvasElement,
   leaf: LeafSplineSegment[],
@@ -15,26 +17,24 @@ export function drawLeafTexture(
   bounds: Box2,
   props: LeafImageProps
 ) {
-  // const twigAngle = Math.PI / 5;
-  // const twigLength = 30;
-  // const leafFan = 3;
-  // console.log(bounds);
-
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.resetTransform();
     ctx.globalAlpha = 0;
     ctx.clearRect(0, 0, 128, 128);
-    // ctx.globalAlpha = 1;
-    // ctx.lineWidth = 2.5;
-    // ctx.strokeStyle = 'green';
 
-    // for (let x = 0; x <= 128; x += 32) {
-    //   ctx.strokeRect(x, 0, x, 128);
-    // }
-    // for (let z = 0; z <= 128; z += 32) {
-    //   ctx.strokeRect(0, z, 128, z);
-    // }
+    if (showGrid) {
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = 'green';
+
+      for (let x = 0; x <= 128; x += 32) {
+        ctx.strokeRect(x, 0, x, 128);
+      }
+      for (let z = 0; z <= 128; z += 32) {
+        ctx.strokeRect(0, z, 128, z);
+      }
+    }
 
     const sx = 128 / (bounds.max.x - bounds.min.x);
     const sy = 128 / (bounds.max.y - bounds.min.y);
@@ -77,6 +77,7 @@ export function drawLeafTexture(
       ctx.resetTransform();
       ctx.transform(sx, 0, 0, sy, -(bounds.min.x * sx), -(bounds.min.y * sy));
       ctx.translate(stamp.translate.x, stamp.translate.y);
+      ctx.scale(stamp.scale, stamp.scale);
       ctx.rotate(stamp.angle);
       ctx.fillStyle = gradient1;
       drawLeafPath(ctx, leaf, 'left');

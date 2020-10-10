@@ -47,8 +47,8 @@ const ComboSliderArrowButton = styled(MomentaryButton)`
     color: #000;
   }
 
-  &:hover {
-    background-color: ${colors.comboArrowBgHover};
+  &:hover:after {
+    color: ${colors.comboArrowBgHover};
   }
 `;
 
@@ -199,32 +199,26 @@ export const ComboSlider: FC<Props> = ({
 
   const dragMethods = usePointerDrag(dragCallbacks);
 
-  const onDoubleClick = useCallback(
-    () => {
-      if (!enumVals && inputEl.current) {
-        inputEl.current.value = value.toString();
-        inputEl.current.select();
-        setTextActive(true);
-        window.setTimeout(() => {
-          inputEl.current?.focus();
-        }, 5);
-      }
-    },
-    [enumVals, value]
-  );
+  const onDoubleClick = useCallback(() => {
+    if (!enumVals && inputEl.current) {
+      inputEl.current.value = value.toString();
+      inputEl.current.select();
+      setTextActive(true);
+      window.setTimeout(() => {
+        inputEl.current?.focus();
+      }, 5);
+    }
+  }, [enumVals, value]);
 
-  const onBlurInput = useCallback(
-    () => {
-      if (inputEl.current) {
-        setTextActive(false);
-        const newValue = parseFloat(inputEl.current.value);
-        if (!isNaN(newValue)) {
-          setValue(newValue);
-        }
+  const onBlurInput = useCallback(() => {
+    if (inputEl.current) {
+      setTextActive(false);
+      const newValue = parseFloat(inputEl.current.value);
+      if (!isNaN(newValue)) {
+        setValue(newValue);
       }
-    },
-    [setValue]
-  );
+    }
+  }, [setValue]);
 
   const onInputKey = useCallback(
     (e: React.KeyboardEvent) => {
@@ -247,7 +241,11 @@ export const ComboSlider: FC<Props> = ({
   );
 
   const percent = enumVals ? 100 : ((value - min) * 100) / (max - min);
-  const displayVal = enumVals ? enumVals[value] : value;
+  const displayVal = enumVals
+    ? enumVals[value]
+    : precision !== undefined
+    ? roundToPrecision(value, precision)
+    : value;
   const backgroundImage = useMemo(() => {
     const cst = colors.comboSliderTrack;
     const cs = colors.comboSlider;
@@ -265,7 +263,7 @@ export const ComboSlider: FC<Props> = ({
         onChange={buttonMethods.onLeftChange}
         onHeld={buttonMethods.onLeftHeld}
       />
-      <ComboSliderContainer {...dragMethods} className="center" onDoubleClick={onDoubleClick} >
+      <ComboSliderContainer {...dragMethods} className="center" onDoubleClick={onDoubleClick}>
         <ComboSliderName className="name">{name}</ComboSliderName>
         <ComboSliderValue className="value">{displayVal}</ComboSliderValue>
         <ComboSliderInput
@@ -284,3 +282,8 @@ export const ComboSlider: FC<Props> = ({
     </ComboSliderElt>
   );
 };
+
+function roundToPrecision(value: number, precision: number): number {
+  const mag = 10 ** precision;
+  return Math.round(value * mag) / mag;
+}

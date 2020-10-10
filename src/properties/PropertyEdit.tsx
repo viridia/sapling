@@ -4,6 +4,25 @@ import { ColorEditor } from '../controls/ColorEditor';
 import { ComboSlider } from '../controls/ComboSlider';
 import { Property, useProperty } from './Property';
 
+export const IntegerPropertyEdit: FC<{ name: string; property: Property }> = ({
+  name,
+  property,
+}) => {
+  const [value, setValue] = useProperty(property);
+
+  return (
+    <ComboSlider
+      name={name}
+      value={value}
+      min={property.minVal}
+      max={property.maxVal}
+      precision={0}
+      increment={1}
+      onChange={setValue}
+    />
+  );
+};
+
 export const ScalarPropertyEdit: FC<{ name: string; property: Property }> = ({
   name,
   property,
@@ -55,14 +74,14 @@ export const ColorPropertyEdit: FC<{ name: string; property: Property }> = ({ na
 export const PropertyEdit: FC<{ name: string; property: Property }> = ({ name, property }) => {
   switch (property.type) {
     case 'integer':
-    case 'float': {
+      return <IntegerPropertyEdit name={name} property={property} />;
+
+    case 'float':
       return <ScalarPropertyEdit name={name} property={property} />;
-    }
 
     case 'rgb':
-    case 'rgba': {
+    case 'rgba':
       return <ColorPropertyEdit name={name} property={property} />;
-    }
 
     default:
       throw Error(`Invalid property type: ${property.type}`);

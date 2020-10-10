@@ -108,8 +108,8 @@ function addSerration(
       .clone()
       .multiplyScalar(pointyness)
       .add(tangent.clone().multiplyScalar((rake * length) / segments.length));
-    displacement.x += rnd.next(-0.5, 0.5) * jitter;
-    displacement.y += rnd.next(-0.5, 0.5) * jitter;
+    displacement.x += rnd.next(-10, 10) * jitter;
+    displacement.y += rnd.next(-10, 10) * jitter;
 
     const p0 = new Vector2(s.x0, s.y0);
     const d3 = new Vector2(s.x3, s.y3).sub(p0).dot(tangent);

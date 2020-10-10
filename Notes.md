@@ -1,10 +1,22 @@
 # TODO:
 
-* Multiple leaves per texture.
+* Initial fork distance
+* Average fork interval (or prob?)
+* Primary fork deviation angle
+* Secondary fork deviation angle
+* Secondary fork scale
+* Secondary fork count
+* maxForks
+* gravity bias - base
+* gravity bias - tip
+
+leader stem / central stem / trunk
+
+* I need a way to be confident that I won't lose designs as I make more.
+
 * Leaf Gradients.
   * Gradient length
 
-* Research algorithms.
 * Replace color editing with gradient editing?
 
 # Branch model:
