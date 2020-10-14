@@ -1,53 +1,98 @@
 import React, { FC, useCallback, useEffect, useState } from 'react';
 import { Color } from 'three';
 import { ColorEditor } from '../controls/ColorEditor';
+import { ComboRangeSlider } from '../controls/ComboRangeSlider';
 import { ComboSlider } from '../controls/ComboSlider';
+import { BooleanEditor } from '../controls/BooleanEditor';
+import { BooleanProperty } from './BooleanProperty';
+import { ColorProperty } from './ColorProperty';
+import { FloatProperty } from './FloatProperty';
+import { IntegerProperty } from './IntegerProperty';
 import { Property, useProperty } from './Property';
+import { RangeProperty } from './RangeProperty';
 
-export const IntegerPropertyEdit: FC<{ name: string; property: Property }> = ({
+export const BooleanPropertyEdit: FC<{ name: string; property: BooleanProperty }> = ({
   name,
   property,
 }) => {
   const [value, setValue] = useProperty(property);
 
   return (
+    <BooleanEditor
+      name={name}
+      value={value}
+      onChange={setValue}
+    />
+  );
+};
+
+export const IntegerPropertyEdit: FC<{ name: string; property: IntegerProperty }> = ({
+  name,
+  property,
+}) => {
+  const [value, setValue] = useProperty(property);
+  const { min, max, enumVals } = property.defn;
+
+  return (
     <ComboSlider
       name={name}
       value={value}
-      min={property.minVal}
-      max={property.maxVal}
+      min={min}
+      max={max || 0}
       precision={0}
       increment={1}
+      enumVals={enumVals}
       onChange={setValue}
     />
   );
 };
 
-export const ScalarPropertyEdit: FC<{ name: string; property: Property }> = ({
+export const FloatPropertyEdit: FC<{ name: string; property: FloatProperty }> = ({
+  name,
+  property,
+}) => {
+  const [value, setValue] = useProperty(property);
+  const { min, max, increment, precision, logScale } = property.defn;
+
+  return (
+    <ComboSlider
+      name={name}
+      value={value}
+      min={min}
+      max={max || 0}
+      precision={precision}
+      increment={increment}
+      logScale={logScale}
+      onChange={setValue}
+    />
+  );
+};
+
+export const RangePropertyEdit: FC<{ name: string; property: RangeProperty }> = ({
   name,
   property,
 }) => {
   const [value, setValue] = useProperty(property);
 
   return (
-    <ComboSlider
+    <ComboRangeSlider
       name={name}
       value={value}
-      min={property.minVal}
-      max={property.maxVal}
+      min={property.min}
+      max={property.max}
       precision={property.precision}
       increment={property.increment}
+      logScale={property.defn.logScale}
       onChange={setValue}
     />
   );
 };
 
-export const ColorPropertyEdit: FC<{ name: string; property: Property }> = ({ name, property }) => {
+export const ColorPropertyEdit: FC<{ name: string; property: ColorProperty }> = ({
+  name,
+  property,
+}) => {
   const [color, setColor] = useState(() => new Color(property.value));
-
-  // TODO: We need to come up with a way to update the color editor when the property
-  // is reset from some source other than the color editor. If the color editor listens
-  // to its own updates we get ugly precision loss.
 
   const onChange = useCallback(
     (value: number) => {
@@ -59,9 +104,9 @@ export const ColorPropertyEdit: FC<{ name: string; property: Property }> = ({ na
 
   useEffect(
     () =>
-      property.subscribe((prop, jump) => {
+      property.subscribe((prop) => {
         color.setHex(property.value);
-        if (jump) {
+        if (ColorProperty.syncColor) {
           setColor(new Color(color));
         }
       }),
@@ -71,19 +116,27 @@ export const ColorPropertyEdit: FC<{ name: string; property: Property }> = ({ na
   return <ColorEditor name={name} value={color} onChange={onChange} />;
 };
 
-export const PropertyEdit: FC<{ name: string; property: Property }> = ({ name, property }) => {
+export const PropertyEdit: FC<{
+  name: string;
+  property: Property<any, any>;
+}> = ({ name, property }) => {
   switch (property.type) {
+    case 'boolean':
+      return <BooleanPropertyEdit name={name} property={property as BooleanProperty} />;
+
     case 'integer':
-      return <IntegerPropertyEdit name={name} property={property} />;
+      return <IntegerPropertyEdit name={name} property={property as IntegerProperty} />;
 
     case 'float':
-      return <ScalarPropertyEdit name={name} property={property} />;
+      return <FloatPropertyEdit name={name} property={property as FloatProperty} />;
 
-    case 'rgb':
-    case 'rgba':
-      return <ColorPropertyEdit name={name} property={property} />;
+    case 'range':
+      return <RangePropertyEdit name={name} property={property as RangeProperty} />;
+
+    case 'color':
+      return <ColorPropertyEdit name={name} property={property as ColorProperty} />;
 
     default:
-      throw Error(`Invalid property type: ${property.type}`);
+      throw Error(`Invalid property type: ${property.type} (${name})`);
   }
 };

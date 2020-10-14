@@ -7,9 +7,11 @@ export const ControlGroup = styled.section`
   margin-bottom: 8px;
 
   > header {
-    align-self: center;
+    align-self: stretch;
     color: ${colors.text};
     margin-bottom: 8px;
+    position: relative;
+    text-align: center;
   }
 
   & > .control:first-of-type {

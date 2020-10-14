@@ -2,13 +2,17 @@ import styled from '@emotion/styled';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FC } from 'react';
 import { Button } from './controls/Button';
-import { ControlGroup } from './controls/ControlGroup';
 import { useDialogState } from './controls/Dialog';
 import { DownloadNameDialog } from './DownloadNameDialog';
 import { MeshGenerator } from './MeshGenerator';
-import { PropertyEdit } from './properties/PropertyEdit';
 import { colors } from './styles';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {
+  PropertyGroupEdit,
+  PropertyMap,
+  RepeatingPropertyGroup,
+  RepeatingPropertyGroupEdit,
+} from './properties';
 
 const ControlPanelElt = styled.aside`
   background-color: ${colors.controlPaletteBg};
@@ -101,12 +105,12 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
           if (json) {
             generator.fromJson(json);
           } else {
-            window.alert('Model file does not contain Sapling metadata.')
+            window.alert('Model file does not contain Sapling metadata.');
           }
         },
         undefined,
         error => {
-          console.log(error);
+          console.error(error);
         }
       );
     }
@@ -115,15 +119,12 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
   return (
     <ControlPanelElt>
       {Object.keys(generator.properties).map(key => {
-        const group = generator.properties[key];
-        return (
-          <ControlGroup key={key}>
-            <header>{key}</header>
-            {Object.keys(group).map(propName => (
-              <PropertyEdit key={propName} name={propName} property={group[propName]} />
-            ))}
-          </ControlGroup>
-        );
+        const group = (generator.properties as PropertyMap)[key];
+        if (group instanceof RepeatingPropertyGroup) {
+          return <RepeatingPropertyGroupEdit key={key} group={group} groupName={key} />;
+        } else {
+          return <PropertyGroupEdit key={key} group={group} groupName={key} />;
+        }
       })}
       <ButtonGroup>
         <Button onClick={onClickReset}>Reset</Button>

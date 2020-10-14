@@ -171,10 +171,10 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
 
   const satGradient = useMemo(
     () => [
-      new Color().setHSL(hue, 0, 0.5).getStyle(),
-      new Color().setHSL(hue, 1, 0.5).getStyle(),
+      new Color().setHSL(hue, 0, lum).getStyle(),
+      new Color().setHSL(hue, 1, lum).getStyle(),
     ],
-    [hue]
+    [hue, lum]
   );
 
   const lumGradient = useMemo(

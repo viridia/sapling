@@ -13,4 +13,8 @@ export const Button = styled.button`
   &:focus {
     box-shadow: 0 0 1px 2px ${colors.focusOutline};
   }
+
+  &[disabled] {
+    opacity: 0.5;
+  }
 `;

@@ -5,6 +5,9 @@ export const colors = {
 
   controlPaletteBg: '#334',
 
+  link: '#bbd',
+  linkHover: '#ccf',
+
   buttonBg: 'linear-gradient(0deg, #223 0%, #445 100%)',
   buttonBorder: '#1c1c1c',
 
@@ -15,6 +18,7 @@ export const colors = {
   comboBorder: '#1c1c1c',
   comboSliderTrack: '#2d2d40',
   comboSlider: '#37374c',
+  comboSliderRange: '#5c5c6f',
   comboLabel: '#aaa',
   comboText: '#ccc',
   comboTextEdit: '#eee',
@@ -40,4 +44,15 @@ export const colors = {
 export const fontFamilies = {
   default: `'Exo 2', sans-serif`,
   monospace: `'Ubuntu Mono', monospace`,
+}
+
+type ColorStop = [string, string | number];
+
+export function linearGradient(direction: string, stops: ColorStop[]): string {
+  const result = [direction];
+  for (const stop of stops) {
+    const [color, position] = stop;
+    result.push(`${color} ${position}`);
+  }
+  return `linear-gradient(${result.join(',')})`;
 }

@@ -3,10 +3,13 @@ import clsx from 'clsx';
 import styled from '@emotion/styled';
 import { DragMethods, usePointerDrag } from './usePointerDrag';
 import { MomentaryButton } from './MomentaryButton';
-import { colors } from '../styles';
+import { colors, linearGradient } from '../styles';
+import { Range } from '../properties';
 import { ControlName, ControlValue } from './Controls';
 
-const ComboSliderElt = styled.div`
+type DragMode = 'low' | 'high' | null;
+
+const ComboRangeSliderElt = styled.div`
   display: inline-flex;
   position: relative;
   align-items: stretch;
@@ -31,7 +34,7 @@ const ComboSliderElt = styled.div`
   }
 `;
 
-const ComboSliderArrowButton = styled(MomentaryButton)`
+const ArrowButton = styled(MomentaryButton)`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -53,19 +56,19 @@ const ComboSliderArrowButton = styled(MomentaryButton)`
   }
 `;
 
-const ComboSliderArrowButtonLeft = styled(ComboSliderArrowButton)`
+const ArrowButtonLeft = styled(ArrowButton)`
   &:after {
     content: '\\25c0';
   }
 `;
 
-const ComboSliderArrowButtonRight = styled(ComboSliderArrowButton)`
+const ArrowButtonRight = styled(ArrowButton)`
   &:after {
     content: '\\25b6';
   }
 `;
 
-const ComboSliderContainer = styled.div`
+const SliderContainer = styled.div`
   display: flex;
   position: relative;
   align-items: center;
@@ -76,7 +79,7 @@ const ComboSliderContainer = styled.div`
   line-height: calc(100%);
 `;
 
-const ComboSliderInput = styled.input`
+const Input = styled.input`
   display: none;
   background-color: transparent;
   color: ${colors.comboTextEdit};
@@ -90,81 +93,129 @@ const ComboSliderInput = styled.input`
   border: none;
 `;
 
-// TODO: log scale testing
+const TrackContainer = styled.div`
+  align-items: stretch;
+  background-color: ${colors.comboSliderTrack};
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 0;
+`;
+
+const Track = styled.div`
+  height: 7px;
+`;
+
+function makeTrackGradient(low: number, high: number) {
+  const cst = colors.comboSliderTrack;
+  const cs = colors.comboSlider;
+  const csr = colors.comboSliderRange;
+  const p0 = `${low}%`;
+  const p1 = `${high}%`;
+  return linearGradient('to right', [
+    [cs, 0],
+    [cs, p0],
+    [csr, p0],
+    [csr, p1],
+    [cst, p1],
+    [cst, '100%'],
+  ]);
+}
 
 interface Props {
   name: string;
-  value: number;
+  value: Range;
   min?: number;
   max: number;
   precision?: number; // 0 = integer, undefined == unlimited
   increment?: number;
   logScale?: boolean;
-  enumVals?: string[];
   className?: string;
-  onChange: (value: number) => void;
+  onChange: (value: Range) => void;
 }
 
-export const ComboSlider: FC<Props> = ({
+export const ComboRangeSlider: FC<Props> = ({
   name,
   value,
   min = 0,
   max,
-  precision,
+  precision = 1,
   increment = 1,
   logScale = false,
   className,
-  enumVals,
   onChange,
 }) => {
   const element = useRef<HTMLDivElement>(null);
   const inputEl = useRef<HTMLInputElement>(null);
+  const [dragMode, setDragMode] = useState<DragMode>(null);
   const [dragOrigin, setDragOrigin] = useState(0);
   const [dragValue, setDragValue] = useState(0);
+  const [dragOtherValue, setDragOtherValue] = useState(0);
   const [textActive, setTextActive] = useState(false);
 
-  const setValue = useCallback(
+  const quantize = useCallback(
     (value: number) => {
-      let newValue = value;
       if (precision !== undefined) {
         const mag = 10 ** precision;
-        newValue = Math.round(newValue * mag) / mag;
+        return Math.round(value * mag) / mag;
       }
-      onChange(Math.min(max, Math.max(min, newValue)));
+      return value;
     },
-    [max, min, onChange, precision]
+    [precision]
   );
 
-  const buttonMethods = useMemo(
-    () => ({
+  const setValue = useCallback(
+    (value: Range) => {
+      let [lo, hi] = value;
+      lo = clamp(quantize(lo), min, max);
+      hi = clamp(quantize(hi), lo, max);
+      onChange([lo, hi]);
+    },
+    [max, min, onChange, quantize]
+  );
+
+  const buttonMethods = useMemo(() => {
+    function update(amount: number) {
+      if (amount > 0) {
+        const inc = Math.min(amount, max - value[1]);
+        setValue([value[0] + inc, value[1] + inc]);
+      } else if (amount < 0) {
+        const inc = Math.max(amount, min - value[0]);
+        setValue([value[0] + inc, value[1] + inc]);
+      }
+    }
+    return {
       onLeftChange(active: boolean) {
         if (active) {
-          setValue(value - increment);
+          update(-increment);
         }
       },
 
       onLeftHeld() {
-        setValue(value - increment);
+        update(-increment);
       },
 
       onRightChange(active: boolean) {
         if (active) {
-          setValue(value + increment);
+          update(increment);
         }
       },
 
       onRightHeld() {
-        setValue(value + increment);
+        update(increment);
       },
-    }),
-    [increment, setValue, value]
-  );
+    };
+  }, [increment, setValue, value, min, max]);
 
   const dragCallbacks = useMemo<DragMethods<HTMLElement>>(() => {
     function valueFromX(dx: number): number {
       let newValue = dragValue;
       if (logScale) {
-        newValue = 2 ** (Math.log2(newValue) + dx * Math.log2(max - min));
+        newValue = 2 ** (Math.log2(newValue) + dx * Math.log2(max - min + 1));
       } else {
         newValue += dx * (max - min);
       }
@@ -173,36 +224,44 @@ export const ComboSlider: FC<Props> = ({
 
     return {
       onDragStart(ds) {
+        const mode: DragMode = ds.y < 12 ? 'low' : 'high';
         setDragOrigin(ds.x);
-        setDragValue(value);
+        setDragMode(mode);
+        setDragValue(mode === 'low' ? value[0] : value[1]);
+        setDragOtherValue(mode === 'low' ? value[1] : value[0]);
       },
 
       onDragMove(ds) {
         if (element.current) {
-          setValue(valueFromX((ds.x - dragOrigin) / element.current.offsetWidth));
+          const v = valueFromX((ds.x - dragOrigin) / element.current.offsetWidth);
+          if (dragMode === 'low') {
+            setValue([v, dragOtherValue]);
+          } else {
+            setValue([Math.min(dragOtherValue, v), v]);
+          }
         }
       },
     };
-  }, [dragOrigin, dragValue, logScale, max, min, setValue, value]);
+  }, [dragValue, logScale, max, min, value, dragOrigin, dragMode, setValue, dragOtherValue]);
 
   const dragMethods = usePointerDrag(dragCallbacks);
 
   const onDoubleClick = useCallback(() => {
-    if (!enumVals && inputEl.current) {
-      inputEl.current.value = value.toString();
+    if (inputEl.current) {
+      inputEl.current.value = formatRange(value, precision);
       inputEl.current.select();
       setTextActive(true);
       window.setTimeout(() => {
         inputEl.current?.focus();
       }, 5);
     }
-  }, [enumVals, value]);
+  }, [precision, value]);
 
   const onBlurInput = useCallback(() => {
     if (inputEl.current) {
       setTextActive(false);
-      const newValue = parseFloat(inputEl.current.value);
-      if (!isNaN(newValue)) {
+      const newValue = parseRange(inputEl.current.value);
+      if (newValue) {
         setValue(newValue);
       }
     }
@@ -212,20 +271,20 @@ export const ComboSlider: FC<Props> = ({
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && inputEl.current) {
         e.preventDefault();
-        const newValue = parseFloat(inputEl.current.value);
-        if (!isNaN(newValue)) {
+        const newValue = parseRange(inputEl.current.value);
+        if (newValue) {
           setValue(newValue);
           setTextActive(false);
         }
       } else if (e.key === 'Escape') {
         e.preventDefault();
         if (inputEl.current) {
-          inputEl.current.value = value.toString();
+          inputEl.current.value = formatRange(value, precision);
         }
         setTextActive(false);
       }
     },
-    [setValue, value, inputEl]
+    [setValue, value, precision]
   );
 
   function toPercent(value: number) {
@@ -236,48 +295,72 @@ export const ComboSlider: FC<Props> = ({
     }
   }
 
-  const percent = enumVals ? 100 : toPercent(value);
-  const displayVal = enumVals
-    ? enumVals[value]
-    : precision !== undefined
-    ? roundToPrecision(value, precision)
-    : value;
-  const backgroundImage = useMemo(() => {
-    const cst = colors.comboSliderTrack;
-    const cs = colors.comboSlider;
-    return `linear-gradient(to right, ${cs} 0, ${cs} ${percent}%, ${cst} ${percent}%, ${cst} 100% )`;
-  }, [percent]);
+  const percent0 = toPercent(value[0]);
+  const percent1 = toPercent(value[1]);
+  const grad0 = makeTrackGradient(percent0, percent0);
+  const grad1 = makeTrackGradient(percent0, percent1);
+  const displayVal = formatRange(value, precision);
 
   return (
-    <ComboSliderElt
+    <ComboRangeSliderElt
       className={clsx('control', 'combo-slider', className, { textActive })}
       ref={element}
-      style={{ backgroundImage }}
     >
-      <ComboSliderArrowButtonLeft
+      <TrackContainer>
+        <Track style={{ backgroundImage: grad0 }} />
+        <Track style={{ backgroundImage: grad1 }} />
+      </TrackContainer>
+      <ArrowButtonLeft
         className="left"
         onChange={buttonMethods.onLeftChange}
         onHeld={buttonMethods.onLeftHeld}
       />
-      <ComboSliderContainer {...dragMethods} className="center" onDoubleClick={onDoubleClick}>
+      <SliderContainer {...dragMethods} className="center" onDoubleClick={onDoubleClick}>
         <ControlName className="name">{name}</ControlName>
         <ControlValue className="value">{displayVal}</ControlValue>
-        <ComboSliderInput
+        <Input
           type="text"
           autoFocus={true}
           onKeyDown={onInputKey}
           onBlur={onBlurInput}
           ref={inputEl}
         />
-      </ComboSliderContainer>
-      <ComboSliderArrowButtonRight
+      </SliderContainer>
+      <ArrowButtonRight
         className="right"
         onChange={buttonMethods.onRightChange}
         onHeld={buttonMethods.onRightHeld}
       />
-    </ComboSliderElt>
+    </ComboRangeSliderElt>
   );
 };
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatRange(value: Range, precision: number): string {
+  return `${roundToPrecision(value[0], precision)} : ${roundToPrecision(value[1], precision)}`;
+}
+
+function parseRange(input: string): Range | null {
+  const m = /^([\d\\.]+)\s+:\s+([\d\\.]+)$/.exec(input.trim());
+  if (m) {
+    const low = parseFloat(m[1]);
+    const high = parseFloat(m[2]);
+    if (!isNaN(low) && !isNaN(high)) {
+      return [low, high];
+    }
+  }
+  const m2 = /^[\d\\.]+$/.exec(input.trim());
+  if (m2) {
+    const val = parseFloat(m2[0]);
+    if (!isNaN(val)) {
+      return [val, val];
+    }
+  }
+  return null;
+}
 
 function roundToPrecision(value: number, precision: number): number {
   const mag = 10 ** precision;

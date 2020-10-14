@@ -1,16 +1,11 @@
 # TODO:
 
-* Initial fork distance
-* Average fork interval (or prob?)
-* Primary fork deviation angle
-* Secondary fork deviation angle
-* Secondary fork scale
-* Secondary fork count
-* maxForks
-* gravity bias - base
-* gravity bias - tip
+## Next
 
-leader stem / central stem / trunk
+* Change length calculation - branchAt only
+  * Will need to estimate length
+  * monopods will need a different calc for intervals.
+* Uniform leaf sizes for non-monos
 
 * I need a way to be confident that I won't lose designs as I make more.
 
@@ -44,3 +39,13 @@ So parameters we want are:
     - split into two equals, both diverted same angle (symmetrical)
     - main branch keeps going same direction, smaller branch diverts at angle
   * Subsequent branches are often at right angles to previous branches
+
+# Bugs
+
+* Saturation slider
+* log scale doesn't work
+
+# Minor features
+
+* Serialize enums?
+* Hide irrelevant properties.
