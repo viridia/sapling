@@ -1,6 +1,7 @@
 import React, { memo, useState, useEffect } from 'react';
 import { MeshGenerator } from './MeshGenerator';
 import { SceneRenderer } from './SceneRenderer';
+import { TriangleCount } from './TriangleCount';
 
 interface Props {
   className?: string;
@@ -21,5 +22,9 @@ export const SceneView: React.FC<Props> = memo(({ className, generator }) => {
     }
   }, [elt, generator]);
 
-  return <section ref={setElt} className={className} />;
+  return (
+    <section ref={setElt} className={className}>
+      <TriangleCount generator={generator} />
+    </section>
+  );
 });

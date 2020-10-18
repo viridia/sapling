@@ -1,10 +1,13 @@
+import { BooleanProperty } from '.';
 import { ColorProperty } from './ColorProperty';
 import { FloatProperty } from './FloatProperty';
 import { IntegerProperty } from './IntegerProperty';
 import { Property, SerializableGroup } from './Property';
 import { RangeProperty, Range } from './RangeProperty';
 
-type PropertyValue<T> = T extends IntegerProperty
+type PropertyValue<T> = T extends BooleanProperty
+  ? boolean
+  : T extends IntegerProperty
   ? number
   : T extends FloatProperty
   ? number
@@ -35,7 +38,14 @@ export class PropertyGroup implements SerializableGroup {
   }
 
   public toJson(): any {
-    return this.values;
+    const result: any = {};
+    Object.getOwnPropertyNames(this).forEach(name => {
+      const property = (this as any)[name] as Property<any, any>;
+      if (property.isEnabled) {
+        result[name] = (this as any)[name].value;
+      }
+    });
+    return result;
   }
 
   public fromJson(json: any): this {
@@ -89,11 +99,3 @@ export class PropertyGroup implements SerializableGroup {
     return result;
   }
 }
-
-// export function getGroupValues<T extends PropertyGroup>(group: PropertyGroup): GroupValues<T> {
-//   const result: any = {};
-//   Object.getOwnPropertyNames(group).forEach(name => {
-//     result[name] = group[name].value;
-//   });
-//   return result;
-// }

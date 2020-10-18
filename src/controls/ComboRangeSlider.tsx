@@ -2,14 +2,14 @@ import React, { FC, useCallback, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import styled from '@emotion/styled';
 import { DragMethods, usePointerDrag } from './usePointerDrag';
-import { MomentaryButton } from './MomentaryButton';
-import { colors, linearGradient } from '../styles';
+import { colors } from '../styles';
 import { Range } from '../properties';
-import { ControlName, ControlValue } from './Controls';
+import { ArrowButtonLeft, ArrowButtonRight, ControlName, ControlValue } from './Controls';
 
-type DragMode = 'low' | 'high' | null;
+type DragMode = 'low' | 'high' | 'both' | null;
 
 const ComboRangeSliderElt = styled.div`
+  background-color: ${colors.comboSliderBg};
   display: inline-flex;
   position: relative;
   align-items: stretch;
@@ -20,7 +20,6 @@ const ComboRangeSliderElt = styled.div`
   min-width: 64px;
   overflow: hidden;
   user-select: none;
-  cursor: ew-resize;
 
   &.textActive > .center {
     > .name,
@@ -31,40 +30,6 @@ const ComboRangeSliderElt = styled.div`
     > input {
       display: block;
     }
-  }
-`;
-
-const ArrowButton = styled(MomentaryButton)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 25px;
-
-  &:after {
-    position: relative;
-    font-size: 12px;
-    line-height: 24px;
-    color: ${colors.comboArrow};
-  }
-
-  &.active:after {
-    color: #000;
-  }
-
-  &:hover:after {
-    color: ${colors.comboArrowBgHover};
-  }
-`;
-
-const ArrowButtonLeft = styled(ArrowButton)`
-  &:after {
-    content: '\\25c0';
-  }
-`;
-
-const ArrowButtonRight = styled(ArrowButton)`
-  &:after {
-    content: '\\25b6';
   }
 `;
 
@@ -94,37 +59,58 @@ const Input = styled.input`
 `;
 
 const TrackContainer = styled.div`
-  align-items: stretch;
-  background-color: ${colors.comboSliderTrack};
-  display: flex;
-  flex-direction: column;
-  justify-content: space-evenly;
   position: absolute;
+  border-radius: 3px;
+  top: 3px;
+  bottom: 3px;
   left: 0;
+  right: 0;
+  overflow: hidden;
+  cursor: ew-resize;
+`;
+
+const TrackLow = styled.div`
+  background-color: ${colors.comboSliderKnob};
+  position: absolute;
   top: 0;
   bottom: 0;
-  right: 0;
 `;
 
-const Track = styled.div`
-  height: 7px;
+const TrackRange = styled.div`
+  background-color: ${colors.comboSliderRange};
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid ${colors.comboSliderRangeBorder};
+  border-right: 1px solid ${colors.comboSliderRangeBorder};
 `;
 
-function makeTrackGradient(low: number, high: number) {
-  const cst = colors.comboSliderTrack;
-  const cs = colors.comboSlider;
-  const csr = colors.comboSliderRange;
-  const p0 = `${low}%`;
-  const p1 = `${high}%`;
-  return linearGradient('to right', [
-    [cs, 0],
-    [cs, p0],
-    [csr, p0],
-    [csr, p1],
-    [cst, p1],
-    [cst, '100%'],
-  ]);
-}
+const DragLow = styled.div`
+  color: ${colors.comboSliderRange};
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -12px;
+  width: 12px;
+  cursor: w-resize;
+  font-size: 10px;
+  vertical-align: middle;
+  padding-top: 2px;
+`;
+
+const DragHigh = styled.div`
+  color: ${colors.comboSliderRange};
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -12px;
+  width: 12px;
+  cursor: e-resize;
+  font-size: 10px;
+  text-align: right;
+  vertical-align: middle;
+  padding-top: 2px;
+`;
 
 interface Props {
   name: string;
@@ -153,8 +139,7 @@ export const ComboRangeSlider: FC<Props> = ({
   const inputEl = useRef<HTMLInputElement>(null);
   const [dragMode, setDragMode] = useState<DragMode>(null);
   const [dragOrigin, setDragOrigin] = useState(0);
-  const [dragValue, setDragValue] = useState(0);
-  const [dragOtherValue, setDragOtherValue] = useState(0);
+  const [dragRefValue, setDragRefValue] = useState<Range>([0, 0]);
   const [textActive, setTextActive] = useState(false);
 
   const quantize = useCallback(
@@ -213,7 +198,7 @@ export const ComboRangeSlider: FC<Props> = ({
 
   const dragCallbacks = useMemo<DragMethods<HTMLElement>>(() => {
     function valueFromX(dx: number): number {
-      let newValue = dragValue;
+      let newValue = dragMode === 'high' ? dragRefValue[1] : dragRefValue[0];
       if (logScale) {
         newValue = 2 ** (Math.log2(newValue) + dx * Math.log2(max - min + 1));
       } else {
@@ -224,25 +209,28 @@ export const ComboRangeSlider: FC<Props> = ({
 
     return {
       onDragStart(ds) {
-        const mode: DragMode = ds.y < 12 ? 'low' : 'high';
+        const mode = ds.target?.dataset.direction as DragMode || 'both';
         setDragOrigin(ds.x);
         setDragMode(mode);
-        setDragValue(mode === 'low' ? value[0] : value[1]);
-        setDragOtherValue(mode === 'low' ? value[1] : value[0]);
+        setDragRefValue([...value]);
       },
 
       onDragMove(ds) {
         if (element.current) {
           const v = valueFromX((ds.x - dragOrigin) / element.current.offsetWidth);
           if (dragMode === 'low') {
-            setValue([v, dragOtherValue]);
+            setValue([v, dragRefValue[1]]);
+          } else if (dragMode === 'high') {
+            setValue([Math.min(dragRefValue[0], v), v]);
           } else {
-            setValue([Math.min(dragOtherValue, v), v]);
+            const span = dragRefValue[1] - dragRefValue[0];
+            const v1 = clamp(v, min, max - span);
+            setValue([v1, v1 + span]);
           }
         }
       },
     };
-  }, [dragValue, logScale, max, min, value, dragOrigin, dragMode, setValue, dragOtherValue]);
+  }, [dragRefValue, logScale, max, min, value, dragOrigin, dragMode, setValue]);
 
   const dragMethods = usePointerDrag(dragCallbacks);
 
@@ -297,25 +285,28 @@ export const ComboRangeSlider: FC<Props> = ({
 
   const percent0 = toPercent(value[0]);
   const percent1 = toPercent(value[1]);
-  const grad0 = makeTrackGradient(percent0, percent0);
-  const grad1 = makeTrackGradient(percent0, percent1);
   const displayVal = formatRange(value, precision);
 
   return (
-    <ComboRangeSliderElt
-      className={clsx('control', 'combo-slider', className, { textActive })}
-      ref={element}
-    >
-      <TrackContainer>
-        <Track style={{ backgroundImage: grad0 }} />
-        <Track style={{ backgroundImage: grad1 }} />
-      </TrackContainer>
+    <ComboRangeSliderElt className={clsx('control', 'combo-slider', className, { textActive })}>
       <ArrowButtonLeft
         className="left"
         onChange={buttonMethods.onLeftChange}
         onHeld={buttonMethods.onLeftHeld}
       />
-      <SliderContainer {...dragMethods} className="center" onDoubleClick={onDoubleClick}>
+      <SliderContainer
+        {...dragMethods}
+        ref={element}
+        className="center"
+        onDoubleClick={onDoubleClick}
+      >
+        <TrackContainer>
+          <TrackLow style={{ left: 0, width: `${percent0}%` }} />
+          <TrackRange style={{ left: `${percent0}%`, width: `${percent1 - percent0}%` }}>
+            <DragLow data-direction="low">&#x25C0;</DragLow>
+            <DragHigh data-direction="high">&#x25B6;</DragHigh>
+          </TrackRange>
+        </TrackContainer>
         <ControlName className="name">{name}</ControlName>
         <ControlValue className="value">{displayVal}</ControlValue>
         <Input

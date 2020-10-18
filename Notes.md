@@ -5,7 +5,12 @@
 * Change length calculation - branchAt only
   * Will need to estimate length
   * monopods will need a different calc for intervals.
+    * numBranches and branch interval.
 * Uniform leaf sizes for non-monos
+* Twigs!
+* Flat leaves (i.e. independent of branch direction)
+* Leaf droop based on gravity
+* Bark material?
 
 * I need a way to be confident that I won't lose designs as I make more.
 

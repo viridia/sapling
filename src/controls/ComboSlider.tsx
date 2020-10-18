@@ -2,11 +2,11 @@ import React, { FC, useCallback, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import styled from '@emotion/styled';
 import { DragMethods, usePointerDrag } from './usePointerDrag';
-import { MomentaryButton } from './MomentaryButton';
 import { colors } from '../styles';
-import { ControlName, ControlValue } from './Controls';
+import { ArrowButtonLeft, ArrowButtonRight, ControlName, ControlValue } from './Controls';
 
 const ComboSliderElt = styled.div`
+  background-color: ${colors.comboSliderBg};
   display: inline-flex;
   position: relative;
   align-items: stretch;
@@ -31,41 +31,7 @@ const ComboSliderElt = styled.div`
   }
 `;
 
-const ComboSliderArrowButton = styled(MomentaryButton)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 25px;
-
-  &:after {
-    position: relative;
-    font-size: 12px;
-    line-height: 24px;
-    color: ${colors.comboArrow};
-  }
-
-  &.active:after {
-    color: #000;
-  }
-
-  &:hover:after {
-    color: ${colors.comboArrowBgHover};
-  }
-`;
-
-const ComboSliderArrowButtonLeft = styled(ComboSliderArrowButton)`
-  &:after {
-    content: '\\25c0';
-  }
-`;
-
-const ComboSliderArrowButtonRight = styled(ComboSliderArrowButton)`
-  &:after {
-    content: '\\25b6';
-  }
-`;
-
-const ComboSliderContainer = styled.div`
+const SliderContainer = styled.div`
   display: flex;
   position: relative;
   align-items: center;
@@ -76,7 +42,17 @@ const ComboSliderContainer = styled.div`
   line-height: calc(100%);
 `;
 
-const ComboSliderInput = styled.input`
+const SliderKnob = styled.div`
+  background-color: ${colors.comboSliderKnob};
+  border-radius: 3px;
+  position: absolute;
+  left: 0;
+  top: 3px;
+  right: 0;
+  bottom: 3px;
+`;
+
+const SliderInput = styled.input`
   display: none;
   background-color: transparent;
   color: ${colors.comboTextEdit};
@@ -88,6 +64,7 @@ const ComboSliderInput = styled.input`
   bottom: 0;
   width: 100%;
   border: none;
+  z-index: 1;
 `;
 
 // TODO: log scale testing
@@ -164,7 +141,8 @@ export const ComboSlider: FC<Props> = ({
     function valueFromX(dx: number): number {
       let newValue = dragValue;
       if (logScale) {
-        newValue = 2 ** (Math.log2(newValue) + dx * Math.log2(max - min));
+        const scale = Math.log2(max / min);
+        newValue = dragValue * Math.pow(2, dx * scale);
       } else {
         newValue += dx * (max - min);
       }
@@ -230,7 +208,7 @@ export const ComboSlider: FC<Props> = ({
 
   function toPercent(value: number) {
     if (logScale) {
-      return (Math.log2(value - min + 1) / Math.log2(max - min + 1)) * 100;
+      return Math.log2(value / min) / Math.log2(max / min) * 100;
     } else {
       return ((value - min) / (max - min)) * 100;
     }
@@ -242,35 +220,34 @@ export const ComboSlider: FC<Props> = ({
     : precision !== undefined
     ? roundToPrecision(value, precision)
     : value;
-  const backgroundImage = useMemo(() => {
-    const cst = colors.comboSliderTrack;
-    const cs = colors.comboSlider;
-    return `linear-gradient(to right, ${cs} 0, ${cs} ${percent}%, ${cst} ${percent}%, ${cst} 100% )`;
-  }, [percent]);
 
   return (
     <ComboSliderElt
       className={clsx('control', 'combo-slider', className, { textActive })}
-      ref={element}
-      style={{ backgroundImage }}
     >
-      <ComboSliderArrowButtonLeft
+      <ArrowButtonLeft
         className="left"
         onChange={buttonMethods.onLeftChange}
         onHeld={buttonMethods.onLeftHeld}
       />
-      <ComboSliderContainer {...dragMethods} className="center" onDoubleClick={onDoubleClick}>
+      <SliderContainer
+        {...dragMethods}
+        className="center"
+        onDoubleClick={onDoubleClick}
+        ref={element}
+      >
         <ControlName className="name">{name}</ControlName>
         <ControlValue className="value">{displayVal}</ControlValue>
-        <ComboSliderInput
+        <SliderInput
           type="text"
           autoFocus={true}
           onKeyDown={onInputKey}
           onBlur={onBlurInput}
           ref={inputEl}
         />
-      </ComboSliderContainer>
-      <ComboSliderArrowButtonRight
+        <SliderKnob style={{ width: `${percent}%`}} />
+      </SliderContainer>
+      <ArrowButtonRight
         className="right"
         onChange={buttonMethods.onRightChange}
         onHeld={buttonMethods.onRightHeld}

@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 
-export type PropertyType = 'boolean' | 'integer' | 'float' | 'color' | 'range' | 'repeat';
+export type PropertyType =
+  | 'boolean'
+  | 'integer'
+  | 'float'
+  | 'color'
+  | 'range'
+  | 'repeat'
+  | 'computed';
 export type UnsubscribeCallback = () => void;
 
 /** Property metadata for editing. */
 export interface PropertyDefn<T> {
   init?: T;
+
+  // Allows selective enabling / disabling of properties.
+  enabled?: Property<boolean, any>;
 }
 
 /** An editable property that notifies listeners. */
@@ -46,6 +56,10 @@ export abstract class Property<T, D extends PropertyDefn<T>> {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
   }
+
+  public get isEnabled(): boolean {
+    return this.defn.enabled ? this.defn.enabled.value : true;
+  }
 }
 
 /** React hook that automatically subscribes to the value. */
@@ -61,6 +75,19 @@ export function usePropertyValue<T>(prop: Property<T, PropertyDefn<T>>): T {
 export function useProperty<T>(prop: Property<T, PropertyDefn<T>>): [T, (value: T) => void] {
   const value = usePropertyValue(prop);
   return [value, useCallback(newVal => prop.update(newVal), [prop])];
+}
+
+/** Hook that updates when the enabled / disabled state of a property changes. */
+export function usePropertyEnabled<T>(prop: Property<T, PropertyDefn<T>>): boolean {
+  const [enabled, setEnabled] = useState(prop.isEnabled);
+
+  useEffect(() => {
+    if (prop.defn.enabled) {
+      return prop.defn.enabled.subscribe(setEnabled);
+    }
+  }, [prop]);
+
+  return enabled;
 }
 
 export const globalListeners = new Set<(prop: Property<any, PropertyDefn<any>>) => void>();

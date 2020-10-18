@@ -8,7 +8,7 @@ import { GradientSlider } from './GradientSlider';
 const HUE_COLORS = ['#f00', '#ff0', '#0f0', '#0ff', '#00f', '#f0f', '#f00'];
 
 const ColorEditorElt = styled.div`
-  background-color: ${colors.controlBg};
+  background-color: ${colors.comboSliderBg};
   display: flex;
   align-items: stretch;
   flex-direction: column;

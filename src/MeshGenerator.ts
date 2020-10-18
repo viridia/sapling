@@ -19,6 +19,7 @@ import {
   addGlobalListener,
   BooleanProperty,
   ColorProperty,
+  ComputedProperty,
   FloatProperty,
   IntegerProperty,
   PropertyGroup,
@@ -37,24 +38,41 @@ import { propertyMapToJson } from './properties/PropertyMap';
 
 const GLTFExporter = require('./third-party/GLTFExporter.js');
 
+const monopodial = new BooleanProperty({ init: true });
+const notMonopodial = new ComputedProperty(monopodial, value => !value);
+
 class TrunkProps extends PropertyGroup {
   seed = new IntegerProperty({ init: 200, min: 1, max: 100000, increment: 1 });
+  monopodial = monopodial;
   radius = new FloatProperty({ init: 0.16, min: 0.01, max: 1 });
   length = new FloatProperty({ init: 3, min: 0.01, max: 6, increment: 0.1 });
   taper = new FloatProperty({ init: 0.1, min: 0, max: 1 });
-  monopodial = new BooleanProperty({ init: true });
   segmentLength = new FloatProperty({ init: 0.5, min: 0.1, max: 1, increment: 0.1 });
   color = new ColorProperty({ init: 0xa08000 });
 }
 
 class BranchProps extends PropertyGroup {
-  scale = new FloatProperty({ init: 1, min: 0.05, max: 1, increment: 0.01 });
-  branchAt = new RangeProperty({ init: [0.4, 0.4], min: 0, max: 1, increment: 0.01 });
-  branchInterval = new RangeProperty({
-    init: [0.1, 0.1],
+  branchAt = new RangeProperty({
+    init: [0.4, 0.4],
     min: 0,
     max: 1,
     increment: 0.01,
+    enabled: monopodial,
+  });
+  interval = new RangeProperty({
+    init: [0.3, 0.3],
+    min: 0,
+    max: 1,
+    increment: 0.01,
+    enabled: monopodial,
+  });
+  length = new RangeProperty({ init: [0.4, 0.4], min: 0, max: 5, increment: 0.01 });
+  lengthTaper = new FloatProperty({
+    init: 1,
+    min: 0.05,
+    max: 1,
+    increment: 0.01,
+    enabled: monopodial,
   });
   axis = new RangeProperty({
     init: [0, 0],
@@ -63,13 +81,14 @@ class BranchProps extends PropertyGroup {
     increment: 0.01,
     precision: 2,
   });
-  angle = new RangeProperty({ init: [0.51, 0.61], min: 0, max: 2, increment: 0.01 });
-  symmetry = new IntegerProperty({ init: 1, min: 1, max: 3 });
+  angle = new RangeProperty({ init: [0.51, 0.61], min: 0, max: 2.5, increment: 0.01 });
+  symmetry = new IntegerProperty({ init: 2, min: 1, max: 3 });
   deflect = new RangeProperty({
     init: [1, 1],
     min: 0,
     max: 1,
     increment: 0.05,
+    enabled: notMonopodial,
   });
   flex = new FloatProperty({ init: 0, min: -1, max: 1, increment: 0.1 });
 }
@@ -125,6 +144,7 @@ export class MeshGenerator {
   private group: Group = new Group();
 
   public canvas: HTMLCanvasElement;
+  public triangleCount = new IntegerProperty({ init: 0 });
 
   private rnd = new Prando(200);
 
@@ -132,7 +152,6 @@ export class MeshGenerator {
   public properties = {
     trunk: new TrunkProps(),
     branch: new RepeatingPropertyGroup(newBranchGroup),
-    // branches: new BranchesProps(),
     leafGroup: new LeavesProps(),
     leaf: new LeafProps(),
   };
@@ -289,28 +308,29 @@ export class MeshGenerator {
     const stamps = this.createLeafStamps();
     const bounds = calcLeafBounds(leafOutline, stamps);
 
-    this.createLeafMesh(bounds);
+    const leafTriangles = this.createLeafMesh(bounds);
     this.drawTexture(leafOutline, stamps, bounds);
     this.leafTexture.needsUpdate = true;
+
+    this.triangleCount.update(indexArray.length / 3 + leafTriangles);
     return this.group;
   }
 
   private growBranch(positionArray: number[], indexArray: number[]) {
     const {
       taper,
-      length: targetLength,
-      radius: baseRadius,
+      length: trunkLength,
+      radius: trunkRadius,
       segmentLength,
       monopodial,
     } = this.properties.trunk.values;
     const branchStack = this.properties.branch.groups;
-    const leafSizeStart = 0.5;
 
     // Note: Lengths are presumed to be in meters
     const numSectors = 6; // Number of polygon faces around the circumference
 
-    const addSegmentNodeVertices = (transform: Matrix4, t: number) => {
-      const radius = baseRadius * Math.pow(taper, t);
+    const addSegmentNodeVertices = (transform: Matrix4, radius: number) => {
+      // const radius = trunkRadius * Math.pow(taper, t);
       for (let i = 0; i < numSectors; i += 1) {
         const angle = (i * 2 * Math.PI) / numSectors;
         const vertex = new Vector3(
@@ -330,133 +350,191 @@ export class MeshGenerator {
       }
     };
 
+    const estimateTotalLength = (baseLength: number, branchLevel: number) => {
+      // Monopodial branch length is derived from the number of child branches.
+      if (monopodial) {
+        return baseLength;
+      }
+
+      for (let level = branchLevel; level < branchStack.length; level += 1) {
+        const length = branchStack[level].length.value;
+        baseLength += (length[0] + length[1]) / 2;
+      }
+      return baseLength;
+    };
+
     const grow = (
       transform: Matrix4,
       currentLength: number,
-      targetLength: number,
-      branchLevel: number
+      branchLength: number,
+      branchRadius: number,
+      branchScale: number,
+      branchLevel: number,
     ) => {
       const position = new Vector3();
       const forward = new Vector3();
       const rotation = new Matrix4();
       const tmpMatrix = new Matrix4();
+
       let maxIterations = 100;
       let prevRingIndex = positionArray.length / 3;
-
-      // Add the ring of vertices at the base of the branch.
-      addSegmentNodeVertices(transform, currentLength / targetLength);
-
-      let branchSpan = targetLength - currentLength;
+      let targetLength: number = estimateTotalLength(branchLength, branchLevel + 1);
       let branchRotation = Math.PI / 2;
 
-      // Curve branches up or down based on gravity bias
-      const applyFlexRotation = (length: number, flex: number) => {
+      const localLength = branchLength - currentLength;
+      branchLength = localLength * branchScale + currentLength;
+
+      // Add the ring of vertices at the base of the branch.
+      addSegmentNodeVertices(transform, branchRadius);
+
+      // Advance transform and create faces.
+      const addSegment = (length: number, radius: number) => {
+        // Curve branches up or down based on gravity bias
         position.setFromMatrixPosition(transform);
         rotation.extractRotation(transform);
         forward.set(0, length, 0).applyMatrix4(rotation);
         const up = new Vector3(0, 1, 0);
         const normal = up.clone().cross(forward);
         if (normal.length() > 0.01) {
+          const flex = branchLevel > 0 ? branchStack[branchLevel - 1].flex.value : 0;
           tmpMatrix.makeRotationAxis(normal, flex);
           transform.copy(rotation).premultiply(tmpMatrix).setPosition(position);
         }
-      };
 
-      // Advance transform and create faces.
-      const addSegment = (length: number) => {
         transform.multiply(new Matrix4().makeTranslation(0, length, 0));
         const ringIndex = positionArray.length / 3;
-        addSegmentNodeVertices(transform, (currentLength + length) / targetLength);
+        addSegmentNodeVertices(transform, radius);
         addSegmentFaces(prevRingIndex, ringIndex);
         prevRingIndex = ringIndex;
+        currentLength += length;
       };
 
-      // Add additional rings and connect the segments.
-      let nextFork = targetLength;
-      if (branchLevel < branchStack.length) {
-        const branchAt = branchStack[branchLevel].branchAt.value;
-        nextFork = currentLength + this.rnd.next(...branchAt) * branchSpan;
-      }
+      const forkChildBranch = (
+        yAngle: number,
+        xAngle: number,
+        start: number,
+        length: number,
+        radius: number,
+        scale: number,
+      ) => {
+        // Compute the fork axis.
+        const forkTransform = new Matrix4();
+        rotation.makeRotationY(yAngle);
+        rotation.multiply(tmpMatrix.makeRotationX(xAngle));
 
-      while (currentLength < targetLength && maxIterations > 0) {
-        maxIterations -= 1;
-        const flex = branchLevel > 0 ? branchStack[branchLevel - 1].flex.value : 0;
+        // Rotate the transform to the new direction.
+        forkTransform.copy(transform);
+        forkTransform.multiply(tmpMatrix.makeTranslation(0, start - currentLength, 0));
+        forkTransform.multiply(rotation);
 
-        // Add segments until we get to the next fork point.
-        nextFork = Math.min(targetLength, nextFork);
-        while (currentLength + segmentLength < nextFork) {
-          const len = Math.min(segmentLength, targetLength - currentLength);
-          applyFlexRotation(len, flex);
-          addSegment(len);
-          currentLength += len;
-        }
+        grow(forkTransform, start, start + length, radius, scale, branchLevel + 1);
+      };
 
-        // Non-monopodial branches need to put a joint at the fork
-        if (currentLength < nextFork) {
-          const len = monopodial
-            ? Math.min(segmentLength, targetLength - currentLength)
-            : nextFork - currentLength;
-          applyFlexRotation(len, flex);
-          addSegment(len);
-          currentLength += len;
-        }
+      if (monopodial) {
+        // Monopodial growth pattern
+        targetLength = branchLength;
 
-        if (branchLevel < branchStack.length) {
-          const { angle, axis, branchInterval, scale, symmetry, deflect } = branchStack[
+        // The tip at the end of a branch, no child branches here.
+        if (branchLevel >= branchStack.length) {
+          // Add segments until we get to the next fork point.
+          while (currentLength < branchLength) {
+            const len = Math.min(segmentLength, branchLength - currentLength);
+            branchRadius *= Math.pow(taper, len / targetLength);
+            addSegment(len, branchRadius);
+          }
+        } else {
+          const { angle, axis, length, interval, symmetry, branchAt, lengthTaper } = branchStack[
             branchLevel
           ].values;
+
+          const firstFork = Math.min(
+            targetLength,
+            currentLength + this.rnd.next(...branchAt) * (branchLength - currentLength)
+          );
+
+          let nextFork = firstFork;
+          while (currentLength < targetLength && maxIterations > 0) {
+            maxIterations -= 1;
+
+            // Add segments until we overshoot the next fork point.
+            while (currentLength < nextFork) {
+              const len = Math.min(segmentLength, targetLength - currentLength);
+              branchRadius *= Math.pow(taper, len / targetLength);
+              addSegment(len, branchRadius);
+            }
+
+            while (nextFork <= currentLength && nextFork < targetLength) {
+              const relativePosition = (targetLength - nextFork) / (targetLength - firstFork);
+              const branchAngle = this.rnd.next(...angle);
+              branchRotation += this.rnd.next(...axis);
+              for (let i = 0; i < symmetry; i += 1) {
+                forkChildBranch(
+                  branchRotation + (i * Math.PI * 2) / symmetry,
+                  -branchAngle,
+                  nextFork,
+                  this.rnd.next(...length),
+                  branchRadius * 0.9,
+                  branchScale * (1 + (relativePosition - 1) * lengthTaper),
+                );
+              }
+
+              nextFork += this.rnd.next(...interval);
+              nextFork = Math.min(nextFork, targetLength);
+            }
+          }
+        }
+      } else {
+        // Sympodial growth pattern
+
+        let nextFork = branchLength;
+        while (branchLevel < branchStack.length) {
+          maxIterations -= 1;
+
+          targetLength = estimateTotalLength(nextFork, branchLevel);
+
+          // Add segments until we reach the next fork point.
+          while (currentLength < nextFork) {
+            const len = Math.min(segmentLength, nextFork - currentLength);
+            const radius = branchRadius * Math.pow(taper, (currentLength + len) / targetLength);
+            addSegment(len, radius);
+          }
+
+          if (branchLevel >= branchStack.length) {
+            break;
+          }
+
+          const { angle, axis, length, symmetry, deflect } = branchStack[branchLevel].values;
           const branchAngle = this.rnd.next(...angle);
-
-          // Compute the fork axis. This is a normalized transformation which aligns
-          // with the current direction vector of the branch, but where the normal
-          // axis is horizontal and the binormal is vertical.
-
-          while (nextFork <= currentLength && nextFork < targetLength - 0.1) {
-            branchRotation += this.rnd.next(...axis);
-
-            const forkTransform = new Matrix4();
-            for (let i = monopodial ? 0 : 1; i < symmetry; i += 1) {
-              rotation.makeRotationY(branchRotation + (i * Math.PI * 2) / symmetry);
-              rotation.multiply(tmpMatrix.makeRotationX(-branchAngle));
-
-              forkTransform.copy(transform);
-              forkTransform.multiply(tmpMatrix.makeTranslation(0, nextFork - currentLength, 0));
-              forkTransform.multiply(rotation);
-
-              const remainingLength = targetLength - nextFork;
-              grow(forkTransform, nextFork, nextFork + remainingLength * scale, branchLevel + 1);
-            }
-
-            if (monopodial) {
-              nextFork += this.rnd.next(...branchInterval);
-            } else {
-              break;
-            }
+          branchRotation += this.rnd.next(...axis);
+          const radius = branchRadius * Math.pow(taper, nextFork / targetLength);
+          for (let i = 1; i < symmetry; i += 1) {
+            const childLength = this.rnd.next(...length);
+            forkChildBranch(
+              branchRotation + (i * Math.PI * 2) / symmetry,
+              -branchAngle,
+              currentLength,
+              childLength,
+              radius,
+              1,
+            );
           }
 
-          if (!monopodial) {
-            if (symmetry > 1) {
-              rotation.makeRotationY(branchRotation * this.rnd.next(...deflect));
-              rotation.multiply(tmpMatrix.makeRotationX(-branchAngle));
-
-              transform.multiply(tmpMatrix.makeTranslation(0, nextFork - currentLength, 0));
-              transform.multiply(rotation);
-            }
-
-            const remainingLength = targetLength - nextFork;
-            targetLength = nextFork + remainingLength * scale;
-
-            branchLevel += 1;
-            if (branchLevel < branchStack.length) {
-              const branchAt = branchStack[branchLevel].branchAt.value;
-              branchSpan = targetLength - currentLength;
-              nextFork = currentLength + this.rnd.next(...branchAt) * branchSpan;
-            } else {
-              nextFork = targetLength;
-            }
+          const childLength = this.rnd.next(...length);
+          if (symmetry > 1) {
+            rotation.makeRotationY(branchRotation * this.rnd.next(...deflect));
+            rotation.multiply(tmpMatrix.makeRotationX(-branchAngle));
+            transform.multiply(rotation);
           }
-        } else if (monopodial) {
-          nextFork = targetLength;
+          // transform.multiply(tmpMatrix.makeTranslation(0, childLength, 0));
+
+          nextFork = currentLength + childLength;
+          branchLevel += 1;
+        }
+
+        while (currentLength < nextFork) {
+          const len = Math.min(segmentLength, nextFork - currentLength);
+          const radius = branchRadius * Math.pow(taper, (currentLength + len) / targetLength);
+          addSegment(len, radius);
         }
       }
 
@@ -480,7 +558,7 @@ export class MeshGenerator {
           transform.makeBasis(normal, forward, binormal).setPosition(position);
         }
 
-        const leafSize = leafSizeStart * (0.3 + branchSpan);
+        const leafSize = branchScale * 0.7 + 0.3;
         this.leafMeshInstances.push(
           transform
             .clone()
@@ -490,7 +568,7 @@ export class MeshGenerator {
       }
     };
 
-    grow(new Matrix4(), 0, targetLength, 0);
+    grow(new Matrix4(), 0, trunkLength, trunkRadius, 1, 0);
   }
 
   private addBranchEnd(positionArray: number[], transform: Matrix4) {
@@ -518,6 +596,7 @@ export class MeshGenerator {
     this.leafGeometry.computeVertexNormals();
     this.leafMaterial.map = this.leafTexture;
     this.leafMesh.geometry = this.leafGeometry;
+    return indexArray.length / 3;
   }
 
   private createLeafFaces(

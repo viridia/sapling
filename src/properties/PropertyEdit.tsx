@@ -8,7 +8,7 @@ import { BooleanProperty } from './BooleanProperty';
 import { ColorProperty } from './ColorProperty';
 import { FloatProperty } from './FloatProperty';
 import { IntegerProperty } from './IntegerProperty';
-import { Property, useProperty } from './Property';
+import { Property, useProperty, usePropertyEnabled } from './Property';
 import { RangeProperty } from './RangeProperty';
 
 export const BooleanPropertyEdit: FC<{ name: string; property: BooleanProperty }> = ({
@@ -120,6 +120,12 @@ export const PropertyEdit: FC<{
   name: string;
   property: Property<any, any>;
 }> = ({ name, property }) => {
+  const enabled = usePropertyEnabled(property);
+
+  if (!enabled) {
+    return null;
+  }
+
   switch (property.type) {
     case 'boolean':
       return <BooleanPropertyEdit name={name} property={property as BooleanProperty} />;

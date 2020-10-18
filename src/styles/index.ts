@@ -16,9 +16,10 @@ export const colors = {
   comboArrow: '#111',
   comboArrowBgHover: '#404058',
   comboBorder: '#1c1c1c',
-  comboSliderTrack: '#2d2d40',
-  comboSlider: '#37374c',
+  comboSliderBg: '#2d2d40',
+  comboSliderKnob: '#3f3f53',
   comboSliderRange: '#5c5c6f',
+  comboSliderRangeBorder: '#6c6c7f',
   comboLabel: '#aaa',
   comboText: '#ccc',
   comboTextEdit: '#eee',
@@ -39,6 +40,8 @@ export const colors = {
   textInputColor: '#ccc',
   textInputSelectionColor: '#eee',
   textInputSelectionBg: '#9595d9',
+
+  overlayColor: '#889',
 };
 
 export const fontFamilies = {

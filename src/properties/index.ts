@@ -4,6 +4,7 @@ export { IntegerProperty } from './IntegerProperty';
 export { FloatProperty } from './FloatProperty';
 export { ColorProperty } from './ColorProperty';
 export { RangeProperty } from './RangeProperty';
+export { ComputedProperty } from './ComputedProperty';
 export { PropertyGroup } from './PropertyGroup';
 export { RepeatingPropertyGroup } from './RepeatingPropertyGroup';
 export { PropertyEdit } from './PropertyEdit';

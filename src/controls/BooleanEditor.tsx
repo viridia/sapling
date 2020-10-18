@@ -6,7 +6,7 @@ import { ControlName, ControlValue } from './Controls';
 
 const BooleanEditorElt = styled.div`
   align-items: center;
-  background-color: ${colors.comboSliderTrack};
+  background-color: ${colors.comboSliderBg};
   border: 1px solid ${colors.comboBorder};
   border-top: none;
   display: inline-flex;
