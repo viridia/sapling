@@ -4,6 +4,7 @@ import styled from '@emotion/styled';
 import { DragMethods, usePointerDrag } from './usePointerDrag';
 import { colors } from '../styles';
 import { ArrowButtonLeft, ArrowButtonRight, ControlName, ControlValue } from './Controls';
+import { NumberInput } from './NumberInput';
 
 const ComboSliderElt = styled.div`
   background-color: ${colors.comboSliderBg};
@@ -53,7 +54,7 @@ const SliderKnob = styled.div`
   bottom: 3px;
 `;
 
-const SliderInput = styled.input`
+const SliderInput = styled(NumberInput)`
   display: none;
   background-color: transparent;
   color: ${colors.comboTextEdit};
@@ -175,35 +176,8 @@ export const ComboSlider: FC<Props> = ({
     }
   }, [value]);
 
-  const onBlurInput = useCallback(() => {
-    if (inputEl.current) {
-      setTextActive(false);
-      const newValue = parseFloat(inputEl.current.value);
-      if (!isNaN(newValue)) {
-        setValue(newValue);
-      }
-    }
-  }, [setValue]);
-
-  const onInputKey = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && inputEl.current) {
-        e.preventDefault();
-        const newValue = parseFloat(inputEl.current.value);
-        if (!isNaN(newValue)) {
-          setValue(newValue);
-          setTextActive(false);
-        }
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        if (inputEl.current) {
-          inputEl.current.value = value.toString();
-        }
-        setTextActive(false);
-      }
-    },
-    [setValue, value, inputEl]
-  );
+  const onFocusInput = useCallback(() => setTextActive(true), []);
+  const onBlurInput = useCallback(() => setTextActive(false), []);
 
   function toPercent(value: number) {
     if (logScale) {
@@ -232,11 +206,12 @@ export const ComboSlider: FC<Props> = ({
         <ControlName className="name">{name}</ControlName>
         <ControlValue className="value">{displayVal}</ControlValue>
         <SliderInput
-          type="text"
           autoFocus={true}
-          onKeyDown={onInputKey}
+          value={value}
+          onFocus={onFocusInput}
           onBlur={onBlurInput}
-          ref={inputEl}
+          onChange={setValue}
+          inputRef={inputEl}
         />
         <SliderKnob style={{ width: `${percent}%` }} />
       </SliderContainer>

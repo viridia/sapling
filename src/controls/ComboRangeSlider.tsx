@@ -5,6 +5,7 @@ import { DragMethods, usePointerDrag } from './usePointerDrag';
 import { colors } from '../styles';
 import { Range } from '../properties';
 import { ArrowButtonLeft, ArrowButtonRight, ControlName, ControlValue } from './Controls';
+import { RangeInput } from './RangeInput';
 
 type DragMode = 'low' | 'high' | 'both' | null;
 
@@ -45,7 +46,7 @@ const SliderContainer = styled.div`
   padding: 0 6px;
 `;
 
-const Input = styled.input`
+const Input = styled(RangeInput)`
   display: none;
   background-color: transparent;
   color: ${colors.comboTextEdit};
@@ -246,35 +247,8 @@ export const ComboRangeSlider: FC<Props> = ({
     }
   }, [precision, value]);
 
-  const onBlurInput = useCallback(() => {
-    if (inputEl.current) {
-      setTextActive(false);
-      const newValue = parseRange(inputEl.current.value);
-      if (newValue) {
-        setValue(newValue);
-      }
-    }
-  }, [setValue]);
-
-  const onInputKey = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && inputEl.current) {
-        e.preventDefault();
-        const newValue = parseRange(inputEl.current.value);
-        if (newValue) {
-          setValue(newValue);
-          setTextActive(false);
-        }
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        if (inputEl.current) {
-          inputEl.current.value = formatRange(value, precision);
-        }
-        setTextActive(false);
-      }
-    },
-    [setValue, value, precision]
-  );
+  const onFocusInput = useCallback(() => setTextActive(true), []);
+  const onBlurInput = useCallback(() => setTextActive(false), []);
 
   function toPercent(value: number) {
     if (logScale) {
@@ -311,11 +285,13 @@ export const ComboRangeSlider: FC<Props> = ({
         <ControlName className="name">{name}</ControlName>
         <ControlValue className="value">{displayVal}</ControlValue>
         <Input
-          type="text"
           autoFocus={true}
-          onKeyDown={onInputKey}
+          value={value}
+          // onKeyDown={onInputKey}
+          onChange={setValue}
+          onFocus={onFocusInput}
           onBlur={onBlurInput}
-          ref={inputEl}
+          inputRef={inputEl}
         />
       </SliderContainer>
       <ArrowButtonRight
@@ -333,25 +309,6 @@ function clamp(value: number, min: number, max: number) {
 
 function formatRange(value: Range, precision: number): string {
   return `${roundToPrecision(value[0], precision)} : ${roundToPrecision(value[1], precision)}`;
-}
-
-function parseRange(input: string): Range | null {
-  const m = /^([\d\\.]+)\s+:\s+([\d\\.]+)$/.exec(input.trim());
-  if (m) {
-    const low = parseFloat(m[1]);
-    const high = parseFloat(m[2]);
-    if (!isNaN(low) && !isNaN(high)) {
-      return [low, high];
-    }
-  }
-  const m2 = /^[\d\\.]+$/.exec(input.trim());
-  if (m2) {
-    const val = parseFloat(m2[0]);
-    if (!isNaN(val)) {
-      return [val, val];
-    }
-  }
-  return null;
 }
 
 function roundToPrecision(value: number, precision: number): number {

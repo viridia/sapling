@@ -13,6 +13,7 @@ import { colors, fontFamilies } from '../styles';
 import clsx from 'clsx';
 import { Color } from 'three';
 import { GradientSlider } from './GradientSlider';
+import { NumberInput } from './NumberInput';
 
 const HUE_COLORS = ['#f00', '#ff0', '#0f0', '#0ff', '#00f', '#f0f', '#f00'];
 
@@ -37,7 +38,7 @@ const TopRow = styled.div`
 const ColorEditorName = styled.span`
   color: ${colors.comboLabel};
   font-size: 12px;
-  margin-left: 25px;
+  margin-left: 31px;
   margin-right: 4px;
   flex: 1;
 `;
@@ -45,7 +46,7 @@ const ColorEditorName = styled.span`
 const ColorEditorValue = styled.span`
   font-family: ${fontFamilies.monospace};
   font-size: 14px;
-  margin-right: 25px;
+  margin-right: 31px;
 `;
 
 const ColorEditorSwatch = styled.span`
@@ -89,12 +90,19 @@ const ChannelName = styled.span`
   width: 16px;
 `;
 
-const ChannelValue = styled.span`
+const ChannelInput = styled(NumberInput)`
+  background-color: transparent;
+  border: none;
+  outline: none;
   color: ${colors.comboText};
   font-family: ${fontFamilies.monospace};
   font-size: 14px;
   width: 32px;
   text-align: end;
+
+  &:focus-within {
+    background-color: ${colors.textInputBg};
+  }
 `;
 
 interface ReducerState {
@@ -115,26 +123,33 @@ interface ReducerAction {
 
 const initialState: ReducerState = { rgbColor: new Color(), h: 0, s: 0, l: 1 };
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
 const reducer = (state: Readonly<ReducerState>, action: ReducerAction): ReducerState => {
   if (action.r !== undefined || action.g !== undefined || action.b !== undefined) {
     let newState = { ...state, rgbColor: state.rgbColor.clone() };
     if (action.r !== undefined) {
-      newState.rgbColor.r = action.r;
+      newState.rgbColor.r = clamp(action.r, 0, 255);
     }
     if (action.g !== undefined) {
-      newState.rgbColor.g = action.g;
+      newState.rgbColor.g = clamp(action.g, 0, 255);
     }
     if (action.b !== undefined) {
-      newState.rgbColor.b = action.b;
+      newState.rgbColor.b = clamp(action.b, 0, 255);
     }
     newState.rgbColor.getHSL(newState);
     return newState;
   } else if (action.h !== undefined) {
-    return { ...state, h: action.h, rgbColor: new Color().setHSL(action.h, state.s, state.l) };
+    const h = clamp(action.h, 0, 1);
+    return { ...state, h, rgbColor: new Color().setHSL(h, state.s, state.l) };
   } else if (action.s !== undefined) {
-    return { ...state, s: action.s, rgbColor: new Color().setHSL(state.h, action.s, state.l) };
+    const s = clamp(action.s, 0, 1);
+    return { ...state, s, rgbColor: new Color().setHSL(state.h, s, state.l) };
   } else if (action.l !== undefined) {
-    return { ...state, l: action.l, rgbColor: new Color().setHSL(state.h, state.s, action.l) };
+    const l = clamp(action.l, 0, 1);
+    return { ...state, l, rgbColor: new Color().setHSL(state.h, state.s, l) };
   }
   return state;
 };
@@ -223,7 +238,10 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
                 colors={redGradient}
                 onChange={r => dispatch({ r })}
               />
-              <ChannelValue>{Math.round(rgbColor.r * 256)}</ChannelValue>
+              <ChannelInput
+                value={Math.round(rgbColor.r * 255)}
+                onChange={r => dispatch({ r: r / 255 })}
+              />
             </Channel>
             <Channel>
               <ChannelName>G</ChannelName>
@@ -233,7 +251,10 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
                 colors={greenGradient}
                 onChange={g => dispatch({ g })}
               />
-              <ChannelValue>{Math.round(rgbColor.g * 256)}</ChannelValue>
+              <ChannelInput
+                value={Math.round(rgbColor.g * 255)}
+                onChange={g => dispatch({ g: g / 255 })}
+              />
             </Channel>
             <Channel>
               <ChannelName>B</ChannelName>
@@ -243,7 +264,10 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
                 colors={blueGradient}
                 onChange={b => dispatch({ b })}
               />
-              <ChannelValue>{Math.round(rgbColor.b)}</ChannelValue>
+              <ChannelInput
+                value={Math.round(rgbColor.b * 255)}
+                onChange={b => dispatch({ b: b / 255 })}
+              />
             </Channel>
             <Channel>
               <ChannelName>H</ChannelName>
@@ -253,7 +277,7 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
                 colors={HUE_COLORS}
                 onChange={h => dispatch({ h })}
               />
-              <ChannelValue>{Math.round(h * 360)}</ChannelValue>
+              <ChannelInput value={Math.round(h * 360)} onChange={h => dispatch({ h: h / 360 })} />
             </Channel>
             <Channel>
               <ChannelName>S</ChannelName>
@@ -263,7 +287,7 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
                 colors={satGradient}
                 onChange={s => dispatch({ s })}
               />
-              <ChannelValue>{Math.round(s * 100) / 100}</ChannelValue>
+              <ChannelInput value={Math.round(s * 100) / 100} onChange={s => dispatch({ s })} />
             </Channel>
             <Channel>
               <ChannelName>L</ChannelName>
@@ -273,7 +297,7 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
                 colors={lumGradient}
                 onChange={l => dispatch({ l })}
               />
-              <ChannelValue>{Math.round(l * 100) / 100}</ChannelValue>
+              <ChannelInput value={Math.round(l * 100) / 100} onChange={l => dispatch({ l })} />
             </Channel>
           </ColorChannels>
         </ColorDropdown>
