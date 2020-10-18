@@ -1,4 +1,13 @@
-import React, { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  FC,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import styled from '@emotion/styled';
 import { colors, fontFamilies } from '../styles';
 import clsx from 'clsx';
@@ -88,6 +97,48 @@ const ChannelValue = styled.span`
   text-align: end;
 `;
 
+interface ReducerState {
+  rgbColor: Color;
+  h: number;
+  s: number;
+  l: number;
+}
+
+interface ReducerAction {
+  r?: number;
+  g?: number;
+  b?: number;
+  h?: number;
+  s?: number;
+  l?: number;
+}
+
+const initialState: ReducerState = { rgbColor: new Color(), h: 0, s: 0, l: 1 };
+
+const reducer = (state: Readonly<ReducerState>, action: ReducerAction): ReducerState => {
+  if (action.r !== undefined || action.g !== undefined || action.b !== undefined) {
+    let newState = { ...state, rgbColor: state.rgbColor.clone() };
+    if (action.r !== undefined) {
+      newState.rgbColor.r = action.r;
+    }
+    if (action.g !== undefined) {
+      newState.rgbColor.g = action.g;
+    }
+    if (action.b !== undefined) {
+      newState.rgbColor.b = action.b;
+    }
+    newState.rgbColor.getHSL(newState);
+    return newState;
+  } else if (action.h !== undefined) {
+    return { ...state, h: action.h, rgbColor: new Color().setHSL(action.h, state.s, state.l) };
+  } else if (action.s !== undefined) {
+    return { ...state, s: action.s, rgbColor: new Color().setHSL(state.h, action.s, state.l) };
+  } else if (action.l !== undefined) {
+    return { ...state, l: action.l, rgbColor: new Color().setHSL(state.h, state.s, action.l) };
+  }
+  return state;
+};
+
 interface Props {
   name: string;
   value: Color;
@@ -97,53 +148,23 @@ interface Props {
 
 export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }) => {
   const [expanded, setExpanded] = useState(false);
+  const [{ h, s, l, rgbColor }, dispatch] = useReducer(reducer, initialState);
 
-  // While this control is active, HSL is the source of truth, not RGB - avoids precision
-  // loss and gimble-lock.
-  const [hue, setHue] = useState(0);
-  const [sat, setSat] = useState(0);
-  const [lum, setLum] = useState(0);
+  useEffect(() => {
+    dispatch({ r: value.r, g: value.g, b: value.b });
+  }, [value]);
 
   const onToggleExpand = useCallback(() => {
     setExpanded(!expanded);
   }, [expanded]);
 
-  const updateHSL = useCallback((color: Color) => {
-    const { h, s, l } = color.getHSL({ h: 0, s: 0, l: 0.5 });
-    setHue(h);
-    setSat(s);
-    setLum(l);
-  }, []);
-
   useEffect(() => {
-    updateHSL(value);
-  }, [value, updateHSL]);
-
-  const rgbColor = useMemo(() => new Color().setHSL(hue, sat, lum), [hue, sat, lum]);
-
-  useEffect(() => {
-    onChange(rgbColor.getHex());
-  }, [rgbColor, onChange]);
-
-  const state = useMemo(() => {
-    return {
-      setR: (n: number) => {
-        const color = rgbColor.clone();
-        color.r = n;
-        updateHSL(color);
-      },
-      setG: (n: number) => {
-        const color = rgbColor.clone();
-        color.g = n;
-        updateHSL(color);
-      },
-      setB: (n: number) => {
-        const color = rgbColor.clone();
-        color.b = n;
-        updateHSL(color);
-      },
-    };
-  }, [rgbColor, updateHSL]);
+    const hexPrev = value.getHex();
+    const hexNext = rgbColor.getHex();
+    if (hexNext !== hexPrev) {
+      onChange(hexNext);
+    }
+  }, [value, rgbColor, onChange]);
 
   const redGradient = useMemo(
     () => [
@@ -170,20 +191,17 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
   );
 
   const satGradient = useMemo(
-    () => [
-      new Color().setHSL(hue, 0, lum).getStyle(),
-      new Color().setHSL(hue, 1, lum).getStyle(),
-    ],
-    [hue, lum]
+    () => [new Color().setHSL(h, 0, l).getStyle(), new Color().setHSL(h, 1, l).getStyle()],
+    [h, l]
   );
 
   const lumGradient = useMemo(
     () => [
-      new Color().setHSL(hue, sat, 0).getStyle(),
-      new Color().setHSL(hue, sat, 0.5).getStyle(),
-      new Color().setHSL(hue, sat, 1).getStyle(),
+      new Color().setHSL(h, s, 0).getStyle(),
+      new Color().setHSL(h, s, 0.5).getStyle(),
+      new Color().setHSL(h, s, 1).getStyle(),
     ],
-    [hue, sat]
+    [h, s]
   );
 
   const ref = useRef<HTMLDivElement>(null);
@@ -203,7 +221,7 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
                 value={rgbColor.r}
                 max={1}
                 colors={redGradient}
-                onChange={state.setR}
+                onChange={r => dispatch({ r })}
               />
               <ChannelValue>{Math.round(rgbColor.r * 256)}</ChannelValue>
             </Channel>
@@ -213,7 +231,7 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
                 value={rgbColor.g}
                 max={1}
                 colors={greenGradient}
-                onChange={state.setG}
+                onChange={g => dispatch({ g })}
               />
               <ChannelValue>{Math.round(rgbColor.g * 256)}</ChannelValue>
             </Channel>
@@ -223,24 +241,39 @@ export const ColorEditor: FC<Props> = memo(({ className, name, value, onChange }
                 value={rgbColor.b}
                 max={1}
                 colors={blueGradient}
-                onChange={state.setB}
+                onChange={b => dispatch({ b })}
               />
               <ChannelValue>{Math.round(rgbColor.b)}</ChannelValue>
             </Channel>
             <Channel>
               <ChannelName>H</ChannelName>
-              <GradientSlider value={hue} max={1} colors={HUE_COLORS} onChange={setHue} />
-              <ChannelValue>{Math.round(hue * 360)}</ChannelValue>
+              <GradientSlider
+                value={h}
+                max={1}
+                colors={HUE_COLORS}
+                onChange={h => dispatch({ h })}
+              />
+              <ChannelValue>{Math.round(h * 360)}</ChannelValue>
             </Channel>
             <Channel>
               <ChannelName>S</ChannelName>
-              <GradientSlider value={sat} max={1} colors={satGradient} onChange={setSat} />
-              <ChannelValue>{Math.round(sat * 100) / 100}</ChannelValue>
+              <GradientSlider
+                value={s}
+                max={1}
+                colors={satGradient}
+                onChange={s => dispatch({ s })}
+              />
+              <ChannelValue>{Math.round(s * 100) / 100}</ChannelValue>
             </Channel>
             <Channel>
               <ChannelName>L</ChannelName>
-              <GradientSlider value={lum} max={1} colors={lumGradient} onChange={setLum} />
-              <ChannelValue>{Math.round(lum * 100) / 100}</ChannelValue>
+              <GradientSlider
+                value={l}
+                max={1}
+                colors={lumGradient}
+                onChange={l => dispatch({ l })}
+              />
+              <ChannelValue>{Math.round(l * 100) / 100}</ChannelValue>
             </Channel>
           </ColorChannels>
         </ColorDropdown>

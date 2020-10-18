@@ -105,7 +105,7 @@ class LeavesProps extends PropertyGroup {
   leafSpacingVariation = new FloatProperty({ init: 0, min: 0, max: 3 });
 }
 
-class LeafProps extends PropertyGroup {
+class LeafShapeProps extends PropertyGroup {
   length = new FloatProperty({ init: 60, min: 20, max: 128, increment: 1 });
   numSegments = new IntegerProperty({ init: 1, min: 1, max: 12, increment: 1 });
   serration = new FloatProperty({ init: 0, min: 0, max: 1 });
@@ -116,10 +116,18 @@ class LeafProps extends PropertyGroup {
   tipWidth = new FloatProperty({ init: 0.2, min: 0.01, max: 1 });
   tipTaper = new FloatProperty({ init: 0.41, min: -1, max: 1 });
   tipRake = new FloatProperty({ init: 0, min: 0, max: 1 });
-  colorLeftInner = new ColorProperty({ init: 0x444444 });
-  colorLeftOuter = new ColorProperty({ init: 0x444444 });
-  colorRightInner = new ColorProperty({ init: 0x444444 });
-  colorRightOuter = new ColorProperty({ init: 0x444444 });
+}
+
+class LeafColorProps extends PropertyGroup {
+  innerColor = new ColorProperty({ init: 0x444444 });
+  outerColor = new ColorProperty({ init: 0x444444 });
+  variation = new FloatProperty({ init: 0, min: 0, max: 1 });
+  gradientDirection = new IntegerProperty({
+    init: 0,
+    min: 0,
+    max: 1,
+    enumVals: ['lateral', 'axial'],
+  });
 }
 
 const newBranchGroup = () => new BranchProps();
@@ -153,7 +161,8 @@ export class MeshGenerator {
     trunk: new TrunkProps(),
     branch: new RepeatingPropertyGroup(newBranchGroup),
     leafGroup: new LeavesProps(),
-    leaf: new LeafProps(),
+    leafShape: new LeafShapeProps(),
+    leafColor: new LeafColorProps(),
   };
 
   constructor() {
@@ -289,7 +298,7 @@ export class MeshGenerator {
     this.barkOutlineMaterial.name = 'outline';
 
     // Compute the outline of a single leaf
-    const leafProps = this.properties.leaf;
+    const leafProps = this.properties.leafShape;
     const leafOutline = buildLeafPath(
       {
         length: leafProps.length.value,
@@ -369,7 +378,7 @@ export class MeshGenerator {
       branchLength: number,
       branchRadius: number,
       branchScale: number,
-      branchLevel: number,
+      branchLevel: number
     ) => {
       const position = new Vector3();
       const forward = new Vector3();
@@ -415,7 +424,7 @@ export class MeshGenerator {
         start: number,
         length: number,
         radius: number,
-        scale: number,
+        scale: number
       ) => {
         // Compute the fork axis.
         const forkTransform = new Matrix4();
@@ -474,7 +483,7 @@ export class MeshGenerator {
                   nextFork,
                   this.rnd.next(...length),
                   branchRadius * 0.9,
-                  branchScale * (1 + (relativePosition - 1) * lengthTaper),
+                  branchScale * (1 + (relativePosition - 1) * lengthTaper)
                 );
               }
 
@@ -515,7 +524,7 @@ export class MeshGenerator {
               currentLength,
               childLength,
               radius,
-              1,
+              1
             );
           }
 
@@ -721,12 +730,9 @@ export class MeshGenerator {
   }
 
   private drawTexture(leaf: LeafSplineSegment[], stamps: LeafStamp[], bounds: Box2) {
-    const props = this.properties.leaf;
+    const colors = this.properties.leafColor.values;
     drawLeafTexture(this.canvas, leaf, stamps, bounds, {
-      colorLeftInner: props.colorLeftInner.value,
-      colorLeftOuter: props.colorLeftOuter.value,
-      colorRightInner: props.colorRightInner.value,
-      colorRightOuter: props.colorRightOuter.value,
+      colors: [colors.innerColor, colors.outerColor],
     });
   }
 }

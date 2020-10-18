@@ -2,12 +2,18 @@
 
 ## Next
 
-* Change length calculation - branchAt only
-  * Will need to estimate length
-  * monopods will need a different calc for intervals.
-    * numBranches and branch interval.
-* Uniform leaf sizes for non-monos
 * Twigs!
+  * Whether a branch has leaves
+  * Or perhaps a 'minLevel' for leaves
+* Finish enum props
+* Redo color gradients
+  * Simplify to two colors
+  * Add gradient direction
+  * Add color jitter
+* Color hex edit
+* Help pane?
+  * Descriptions for properties?
+* Uniform leaf sizes for non-monos
 * Flat leaves (i.e. independent of branch direction)
 * Leaf droop based on gravity
 * Bark material?
@@ -19,38 +25,11 @@
 
 * Replace color editing with gradient editing?
 
-# Branch model:
-
-  Pine vs Willow.
-
-  Pine:
-    Branches close together
-    Branches in radom directions, but not too close to previous branches.
-    Branches angle downward:
-      - No trunk influence
-      - Small gravity influence
-    Only one or two levels of branching
-
-  Willow:
-    Small branch angles
-    Curved segments between forks
-    Gravity influence increasing near tips
-
-So parameters we want are:
-
-  * Frequency of brancing from trunk
-  * Frequency of forks
-  * Type of fork:
-    - split into two equals, both diverted same angle (symmetrical)
-    - main branch keeps going same direction, smaller branch diverts at angle
-  * Subsequent branches are often at right angles to previous branches
-
 # Bugs
 
-* Saturation slider
-* log scale doesn't work
+* Double-check log scale formula.
+* Finish log scale for range props
 
 # Minor features
 
 * Serialize enums?
-* Hide irrelevant properties.

@@ -2,10 +2,7 @@ import { Box2, Color } from 'three';
 import { LeafSplineSegment, LeafStamp } from './leaf';
 
 interface LeafImageProps {
-  colorLeftInner: number;
-  colorLeftOuter: number;
-  colorRightInner: number;
-  colorRightOuter: number;
+  colors: number[];
 }
 
 const showGrid = false;
@@ -17,6 +14,8 @@ export function drawLeafTexture(
   bounds: Box2,
   props: LeafImageProps
 ) {
+  const [color0, color1] = props.colors;
+  const [color2, color3] = props.colors;
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.resetTransform();
@@ -35,6 +34,11 @@ export function drawLeafTexture(
         ctx.strokeRect(0, z, 128, z);
       }
     }
+
+    let maxWidth = 0;
+    leaf.forEach(l => {
+      maxWidth = Math.max(maxWidth, l.x0, l.x1, l.x2, l.x3);
+    });
 
     const sx = 128 / (bounds.max.x - bounds.min.x);
     const sy = 128 / (bounds.max.y - bounds.min.y);
@@ -65,13 +69,13 @@ export function drawLeafTexture(
     }
 
     // Fill leafs with gradient colors
-    const gradient1 = ctx.createLinearGradient(0, 0, 15, 0);
-    gradient1.addColorStop(0, new Color(props.colorLeftInner).getStyle());
-    gradient1.addColorStop(1, new Color(props.colorLeftOuter).getStyle());
+    const gradient1 = ctx.createLinearGradient(0, 0, maxWidth * 0.6, 0);
+    gradient1.addColorStop(0, new Color(color0).getStyle());
+    gradient1.addColorStop(1, new Color(color1).getStyle());
 
-    const gradient2 = ctx.createLinearGradient(0, 0, -15, 0);
-    gradient2.addColorStop(0, new Color(props.colorRightInner).getStyle());
-    gradient2.addColorStop(1, new Color(props.colorRightOuter).getStyle());
+    const gradient2 = ctx.createLinearGradient(0, 0, -maxWidth * 0.6, 0);
+    gradient2.addColorStop(0, new Color(color2).getStyle());
+    gradient2.addColorStop(1, new Color(color3).getStyle());
 
     for (const stamp of stamps) {
       ctx.resetTransform();

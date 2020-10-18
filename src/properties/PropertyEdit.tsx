@@ -10,6 +10,7 @@ import { FloatProperty } from './FloatProperty';
 import { IntegerProperty } from './IntegerProperty';
 import { Property, useProperty, usePropertyEnabled } from './Property';
 import { RangeProperty } from './RangeProperty';
+import { EnumEditor } from '../controls/EnumEditor';
 
 export const BooleanPropertyEdit: FC<{ name: string; property: BooleanProperty }> = ({
   name,
@@ -33,6 +34,17 @@ export const IntegerPropertyEdit: FC<{ name: string; property: IntegerProperty }
   const [value, setValue] = useProperty(property);
   const { min, max, enumVals } = property.defn;
 
+  if (enumVals) {
+    return (
+      <EnumEditor
+        name={name}
+        value={value}
+        enumVals={enumVals!}
+        onChange={setValue}
+      />
+    );
+  }
+
   return (
     <ComboSlider
       name={name}
@@ -41,7 +53,6 @@ export const IntegerPropertyEdit: FC<{ name: string; property: IntegerProperty }
       max={max || 0}
       precision={0}
       increment={1}
-      enumVals={enumVals}
       onChange={setValue}
     />
   );
@@ -104,7 +115,7 @@ export const ColorPropertyEdit: FC<{ name: string; property: ColorProperty }> = 
 
   useEffect(
     () =>
-      property.subscribe((prop) => {
+      property.subscribe((value) => {
         color.setHex(property.value);
         if (ColorProperty.syncColor) {
           setColor(new Color(color));
@@ -130,8 +141,9 @@ export const PropertyEdit: FC<{
     case 'boolean':
       return <BooleanPropertyEdit name={name} property={property as BooleanProperty} />;
 
-    case 'integer':
+    case 'integer': {
       return <IntegerPropertyEdit name={name} property={property as IntegerProperty} />;
+    }
 
     case 'float':
       return <FloatPropertyEdit name={name} property={property as FloatProperty} />;

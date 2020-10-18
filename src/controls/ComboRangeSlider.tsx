@@ -42,6 +42,7 @@ const SliderContainer = styled.div`
   font-size: 14px;
   vertical-align: middle;
   line-height: calc(100%);
+  padding: 0 6px;
 `;
 
 const Input = styled.input`

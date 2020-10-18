@@ -65,9 +65,7 @@ export abstract class Property<T, D extends PropertyDefn<T>> {
 /** React hook that automatically subscribes to the value. */
 export function usePropertyValue<T>(prop: Property<T, PropertyDefn<T>>): T {
   const [, updateState] = useState({});
-
   useEffect(() => prop.subscribe(() => updateState({})), [prop]);
-
   return prop.value;
 }
 

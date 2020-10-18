@@ -40,6 +40,7 @@ const SliderContainer = styled.div`
   font-size: 14px;
   vertical-align: middle;
   line-height: calc(100%);
+  padding: 0 6px;
 `;
 
 const SliderKnob = styled.div`
@@ -77,7 +78,6 @@ interface Props {
   precision?: number; // 0 = integer, undefined == unlimited
   increment?: number;
   logScale?: boolean;
-  enumVals?: string[];
   className?: string;
   onChange: (value: number) => void;
 }
@@ -91,7 +91,6 @@ export const ComboSlider: FC<Props> = ({
   increment = 1,
   logScale = false,
   className,
-  enumVals,
   onChange,
 }) => {
   const element = useRef<HTMLDivElement>(null);
@@ -166,7 +165,7 @@ export const ComboSlider: FC<Props> = ({
   const dragMethods = usePointerDrag(dragCallbacks);
 
   const onDoubleClick = useCallback(() => {
-    if (!enumVals && inputEl.current) {
+    if (inputEl.current) {
       inputEl.current.value = value.toString();
       inputEl.current.select();
       setTextActive(true);
@@ -174,7 +173,7 @@ export const ComboSlider: FC<Props> = ({
         inputEl.current?.focus();
       }, 5);
     }
-  }, [enumVals, value]);
+  }, [value]);
 
   const onBlurInput = useCallback(() => {
     if (inputEl.current) {
@@ -208,23 +207,17 @@ export const ComboSlider: FC<Props> = ({
 
   function toPercent(value: number) {
     if (logScale) {
-      return Math.log2(value / min) / Math.log2(max / min) * 100;
+      return (Math.log2(value / min) / Math.log2(max / min)) * 100;
     } else {
       return ((value - min) / (max - min)) * 100;
     }
   }
 
-  const percent = enumVals ? 100 : toPercent(value);
-  const displayVal = enumVals
-    ? enumVals[value]
-    : precision !== undefined
-    ? roundToPrecision(value, precision)
-    : value;
+  const percent = toPercent(value);
+  const displayVal = precision !== undefined ? roundToPrecision(value, precision) : value;
 
   return (
-    <ComboSliderElt
-      className={clsx('control', 'combo-slider', className, { textActive })}
-    >
+    <ComboSliderElt className={clsx('control', 'combo-slider', className, { textActive })}>
       <ArrowButtonLeft
         className="left"
         onChange={buttonMethods.onLeftChange}
@@ -245,7 +238,7 @@ export const ComboSlider: FC<Props> = ({
           onBlur={onBlurInput}
           ref={inputEl}
         />
-        <SliderKnob style={{ width: `${percent}%`}} />
+        <SliderKnob style={{ width: `${percent}%` }} />
       </SliderContainer>
       <ArrowButtonRight
         className="right"

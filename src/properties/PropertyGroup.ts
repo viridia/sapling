@@ -1,3 +1,4 @@
+import { Color } from 'three';
 import { BooleanProperty } from '.';
 import { ColorProperty } from './ColorProperty';
 import { FloatProperty } from './FloatProperty';
@@ -42,7 +43,14 @@ export class PropertyGroup implements SerializableGroup {
     Object.getOwnPropertyNames(this).forEach(name => {
       const property = (this as any)[name] as Property<any, any>;
       if (property.isEnabled) {
-        result[name] = (this as any)[name].value;
+        const value = (this as any)[name].value;
+        if (property.type === 'integer' && property.defn.enumVals) {
+          result[name] = property.defn.enumVals[value] || 0;
+        } else if (property.type === 'color') {
+          result[name] = new Color(value).getStyle();
+        } else {
+          result[name] = value;
+        }
       }
     });
     return result;
@@ -57,13 +65,31 @@ export class PropertyGroup implements SerializableGroup {
           case 'boolean': {
             if (typeof value === 'boolean') {
               prop.update(value);
+            } else {
+              console.warn(`incorrect type for property: ${propName}: ${typeof value}`)
             }
             break;
           }
           case 'float':
+            if (typeof value === 'number') {
+              prop.update(value);
+            } else {
+              console.warn(`incorrect type for property: ${propName}: ${typeof value}`)
+            }
+            break;
           case 'integer': {
             if (typeof value === 'number') {
               prop.update(value);
+            } else if (typeof value === 'string') {
+              const intProp = prop as IntegerProperty;
+              const index = intProp.defn.enumVals?.indexOf(value) ?? -1;
+              if (index >= 0) {
+                prop.update(index);
+              } else {
+                console.warn(`unknown enum value for property: ${propName}: ${value}`)
+              }
+            } else {
+              console.warn(`incorrect type for property: ${propName}: ${typeof value}`)
             }
             break;
           }
@@ -72,6 +98,13 @@ export class PropertyGroup implements SerializableGroup {
               ColorProperty.syncColor = true;
               prop.update(value);
               ColorProperty.syncColor = false;
+            } else if (typeof value === 'string') {
+              const color = new Color(value);
+              ColorProperty.syncColor = true;
+              prop.update(color.getHex());
+              ColorProperty.syncColor = false;
+            } else {
+              console.warn(`incorrect type for property: ${propName}: ${typeof value}`)
             }
             break;
           }
@@ -83,6 +116,8 @@ export class PropertyGroup implements SerializableGroup {
               typeof value[1] === 'number'
             ) {
               prop.update(value);
+            } else {
+              console.warn(`incorrect type for property: ${propName}: ${typeof value}`)
             }
           }
         }

@@ -8,7 +8,6 @@ export const ControlName = styled.span`
   flex: 1;
   font-size: 12px;
   line-height: 22px;
-  margin: 0 6px;
   z-index: 1;
   pointer-events: none;
 `;
@@ -17,7 +16,6 @@ export const ControlValue = styled.span`
   color: ${colors.comboText};
   font-size: 12px;
   z-index: 1;
-  margin: 0 6px;
   pointer-events: none;
 `;
 
