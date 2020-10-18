@@ -287,7 +287,6 @@ export const ComboRangeSlider: FC<Props> = ({
         <Input
           autoFocus={true}
           value={value}
-          // onKeyDown={onInputKey}
           onChange={setValue}
           onFocus={onFocusInput}
           onBlur={onBlurInput}

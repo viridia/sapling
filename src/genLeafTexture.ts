@@ -36,8 +36,10 @@ export function drawLeafTexture(
     }
 
     let maxWidth = 0;
+    let maxLength = 0;
     leaf.forEach(l => {
       maxWidth = Math.max(maxWidth, l.x0, l.x1, l.x2, l.x3);
+      maxLength = Math.max(maxLength, l.y0, l.y1, l.y2, l.y3);
     });
 
     const sx = 128 / (bounds.max.x - bounds.min.x);
@@ -69,13 +71,16 @@ export function drawLeafTexture(
     }
 
     // Fill leafs with gradient colors
-    const gradient1 = ctx.createLinearGradient(0, 0, maxWidth * 0.6, 0);
-    gradient1.addColorStop(0, new Color(color0).getStyle());
-    gradient1.addColorStop(1, new Color(color1).getStyle());
+    const gradient1 = ctx.createLinearGradient(-maxWidth * 0.6, 0, maxWidth * 0.6, 0);
+    // const gradient1 = ctx.createLinearGradient(0, 0, 0, maxLength);
+    gradient1.addColorStop(0, new Color(color1).getStyle());
+    gradient1.addColorStop(0.5, new Color(color0).getStyle());
+    gradient1.addColorStop(0.5, new Color(color2).getStyle());
+    gradient1.addColorStop(1, new Color(color3).getStyle());
 
-    const gradient2 = ctx.createLinearGradient(0, 0, -maxWidth * 0.6, 0);
-    gradient2.addColorStop(0, new Color(color2).getStyle());
-    gradient2.addColorStop(1, new Color(color3).getStyle());
+    // const gradient2 = ctx.createLinearGradient(0, 0, -maxWidth * 0.6, 0);
+    // gradient2.addColorStop(0, new Color(color2).getStyle());
+    // gradient2.addColorStop(1, new Color(color3).getStyle());
 
     for (const stamp of stamps) {
       ctx.resetTransform();
@@ -84,10 +89,7 @@ export function drawLeafTexture(
       ctx.scale(stamp.scale, stamp.scale);
       ctx.rotate(stamp.angle);
       ctx.fillStyle = gradient1;
-      drawLeafPath(ctx, leaf, 'left');
-      ctx.fill();
-      ctx.fillStyle = gradient2;
-      drawLeafPath(ctx, leaf, 'right');
+      drawLeafPath(ctx, leaf, 'both');
       ctx.fill();
     }
   }

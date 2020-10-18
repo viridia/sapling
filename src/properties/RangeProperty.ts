@@ -37,6 +37,11 @@ export class RangeProperty extends Property<Range, RangePropertyDefn> {
     return this.defn.increment ?? (this.max - this.min) / 100;
   }
 
+  /** Return the median value of this range */
+  public get medianValue(): number {
+    return (this.data[0] + this.data[1]) * 0.5;
+  }
+
   /** Return a random sample from within this range. */
   public sample(rnd: Prando) {
     return rnd.next(this.data[0], this.data[1]);

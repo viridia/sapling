@@ -7,17 +7,18 @@ import {
   DoubleSide,
   Float32BufferAttribute,
   Group,
+  LineSegments,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
   Scene,
   Vector2,
   Vector3,
+  WireframeGeometry,
 } from 'three';
 import { OutlineMaterial } from './materials/OutlineMaterial';
 import {
   addGlobalListener,
-  BooleanProperty,
   ColorProperty,
   ComputedProperty,
   FloatProperty,
@@ -38,15 +39,24 @@ import { propertyMapToJson } from './properties/PropertyMap';
 
 const GLTFExporter = require('./third-party/GLTFExporter.js');
 
-const monopodial = new BooleanProperty({ init: true });
-const notMonopodial = new ComputedProperty(monopodial, value => !value);
+enum GrowthPattern {
+  Dichotomous = 0,
+  Monopodial = 1,
+}
+
+const growthPattern = new IntegerProperty({ init: 0, enumVals: ['dichotomous', 'monopodial'] });
+const monopodial = new ComputedProperty(growthPattern, value => value === GrowthPattern.Monopodial);
+const notMonopodial = new ComputedProperty(
+  growthPattern,
+  value => value !== GrowthPattern.Monopodial
+);
 
 class TrunkProps extends PropertyGroup {
   seed = new IntegerProperty({ init: 200, min: 1, max: 100000, increment: 1 });
-  monopodial = monopodial;
+  growthPattern = growthPattern;
   radius = new FloatProperty({ init: 0.16, min: 0.01, max: 1 });
   length = new FloatProperty({ init: 3, min: 0.01, max: 6, increment: 0.1 });
-  taper = new FloatProperty({ init: 0.1, min: 0, max: 1 });
+  taper = new FloatProperty({ init: 0.1, min: 0.01, max: 1 });
   segmentLength = new FloatProperty({ init: 0.5, min: 0.1, max: 1, increment: 0.1 });
   color = new ColorProperty({ init: 0xa08000 });
 }
@@ -122,12 +132,7 @@ class LeafColorProps extends PropertyGroup {
   innerColor = new ColorProperty({ init: 0x444444 });
   outerColor = new ColorProperty({ init: 0x444444 });
   variation = new FloatProperty({ init: 0, min: 0, max: 1 });
-  gradientDirection = new IntegerProperty({
-    init: 0,
-    min: 0,
-    max: 1,
-    enumVals: ['lateral', 'axial'],
-  });
+  gradientDirection = new IntegerProperty({ init: 0, enumVals: ['lateral', 'axial'] });
 }
 
 const newBranchGroup = () => new BranchProps();
@@ -153,6 +158,9 @@ export class MeshGenerator {
 
   public canvas: HTMLCanvasElement;
   public triangleCount = new IntegerProperty({ init: 0 });
+
+  private barkWireframe: WireframeGeometry | null = null;
+  private barkLineSegments: LineSegments | null = null;
 
   private rnd = new Prando(200);
 
@@ -287,6 +295,14 @@ export class MeshGenerator {
       this.leafGeometry.dispose();
     }
 
+    if (this.barkWireframe) {
+      this.barkWireframe.dispose();
+    }
+
+    if (this.barkLineSegments) {
+      this.group.remove(this.barkLineSegments);
+    }
+
     this.barkGeometry = new BufferGeometry();
     this.barkGeometry.setIndex(indexArray);
     this.barkGeometry.setAttribute('position', new Float32BufferAttribute(positionArray, 3));
@@ -321,6 +337,17 @@ export class MeshGenerator {
     this.drawTexture(leafOutline, stamps, bounds);
     this.leafTexture.needsUpdate = true;
 
+    this.barkWireframe = new WireframeGeometry(this.barkGeometry);
+    this.barkLineSegments = new LineSegments(this.barkWireframe);
+
+    if (!Array.isArray(this.barkLineSegments.material)) {
+      this.barkLineSegments.material.opacity = 0.25;
+      this.barkLineSegments.material.transparent = true;
+    }
+
+    this.group.add(this.barkLineSegments);
+    this.barkLineSegments.visible = false;
+
     this.triangleCount.update(indexArray.length / 3 + leafTriangles);
     return this.group;
   }
@@ -331,12 +358,24 @@ export class MeshGenerator {
       length: trunkLength,
       radius: trunkRadius,
       segmentLength,
-      monopodial,
     } = this.properties.trunk.values;
     const branchStack = this.properties.branch.groups;
+    const monopodial = growthPattern.value;
 
     // Note: Lengths are presumed to be in meters
     const numSectors = 6; // Number of polygon faces around the circumference
+
+    // Estimate the length of an "average" branch from root to tip.
+    let averageBranchLength = trunkLength;
+    for (let level = 0; level < branchStack.length; level += 1) {
+      let spanLength = branchStack[level].length.medianValue;
+      if (monopodial) {
+        spanLength *= branchStack[level].branchAt.medianValue;
+      }
+      averageBranchLength += spanLength;
+    }
+    // Calculate the rate at which branches get thinner per unit length.
+    const contractionRate = 1 / averageBranchLength;
 
     const addSegmentNodeVertices = (transform: Matrix4, radius: number) => {
       // const radius = trunkRadius * Math.pow(taper, t);
@@ -359,27 +398,14 @@ export class MeshGenerator {
       }
     };
 
-    const estimateTotalLength = (baseLength: number, branchLevel: number) => {
-      // Monopodial branch length is derived from the number of child branches.
-      if (monopodial) {
-        return baseLength;
-      }
-
-      for (let level = branchLevel; level < branchStack.length; level += 1) {
-        const length = branchStack[level].length.value;
-        baseLength += (length[0] + length[1]) / 2;
-      }
-      return baseLength;
-    };
-
     const grow = (
       transform: Matrix4,
-      currentLength: number,
       branchLength: number,
       branchRadius: number,
       branchScale: number,
       branchLevel: number
     ) => {
+      // Pre-allocate three.js objects used as temporary vars in calculations.
       const position = new Vector3();
       const forward = new Vector3();
       const rotation = new Matrix4();
@@ -387,11 +413,10 @@ export class MeshGenerator {
 
       let maxIterations = 100;
       let prevRingIndex = positionArray.length / 3;
-      let targetLength: number = estimateTotalLength(branchLength, branchLevel + 1);
       let branchRotation = Math.PI / 2;
+      let currentLength = 0;
 
-      const localLength = branchLength - currentLength;
-      branchLength = localLength * branchScale + currentLength;
+      branchLength *= branchScale;
 
       // Add the ring of vertices at the base of the branch.
       addSegmentNodeVertices(transform, branchRadius);
@@ -406,7 +431,9 @@ export class MeshGenerator {
         const normal = up.clone().cross(forward);
         if (normal.length() > 0.01) {
           const flex = branchLevel > 0 ? branchStack[branchLevel - 1].flex.value : 0;
-          tmpMatrix.makeRotationAxis(normal, flex);
+          const nl = normal.length();
+          normal.normalize();
+          tmpMatrix.makeRotationAxis(normal, flex * nl * 4);
           transform.copy(rotation).premultiply(tmpMatrix).setPosition(position);
         }
 
@@ -421,7 +448,7 @@ export class MeshGenerator {
       const forkChildBranch = (
         yAngle: number,
         xAngle: number,
-        start: number,
+        offset: number,
         length: number,
         radius: number,
         scale: number
@@ -433,22 +460,21 @@ export class MeshGenerator {
 
         // Rotate the transform to the new direction.
         forkTransform.copy(transform);
-        forkTransform.multiply(tmpMatrix.makeTranslation(0, start - currentLength, 0));
+        forkTransform.multiply(tmpMatrix.makeTranslation(0, offset, 0));
         forkTransform.multiply(rotation);
 
-        grow(forkTransform, start, start + length, radius, scale, branchLevel + 1);
+        grow(forkTransform, length, radius, scale, branchLevel + 1);
       };
 
       if (monopodial) {
         // Monopodial growth pattern
-        targetLength = branchLength;
 
         // The tip at the end of a branch, no child branches here.
         if (branchLevel >= branchStack.length) {
           // Add segments until we get to the next fork point.
           while (currentLength < branchLength) {
             const len = Math.min(segmentLength, branchLength - currentLength);
-            branchRadius *= Math.pow(taper, len / targetLength);
+            branchRadius *= Math.pow(taper, len * contractionRate);
             addSegment(len, branchRadius);
           }
         } else {
@@ -457,55 +483,55 @@ export class MeshGenerator {
           ].values;
 
           const firstFork = Math.min(
-            targetLength,
+            branchLength,
             currentLength + this.rnd.next(...branchAt) * (branchLength - currentLength)
           );
 
           let nextFork = firstFork;
-          while (currentLength < targetLength && maxIterations > 0) {
+          while (currentLength < branchLength && maxIterations > 0) {
             maxIterations -= 1;
 
             // Add segments until we overshoot the next fork point.
             while (currentLength < nextFork) {
-              const len = Math.min(segmentLength, targetLength - currentLength);
-              branchRadius *= Math.pow(taper, len / targetLength);
+              const len = Math.min(segmentLength, branchLength - currentLength);
+              branchRadius *= Math.pow(taper, len * contractionRate);
               addSegment(len, branchRadius);
             }
 
-            while (nextFork <= currentLength && nextFork < targetLength) {
-              const relativePosition = (targetLength - nextFork) / (targetLength - firstFork);
+            while (nextFork <= currentLength && nextFork < branchLength) {
+              const relativePosition = (branchLength - nextFork) / (branchLength - firstFork);
               const branchAngle = this.rnd.next(...angle);
               branchRotation += this.rnd.next(...axis);
+              const forkRadius =
+                branchRadius * Math.pow(taper, (nextFork - currentLength) * contractionRate);
               for (let i = 0; i < symmetry; i += 1) {
                 forkChildBranch(
                   branchRotation + (i * Math.PI * 2) / symmetry,
                   -branchAngle,
-                  nextFork,
+                  nextFork - currentLength,
                   this.rnd.next(...length),
-                  branchRadius * 0.9,
+                  forkRadius * 0.9,
                   branchScale * (1 + (relativePosition - 1) * lengthTaper)
                 );
               }
 
               nextFork += this.rnd.next(...interval);
-              nextFork = Math.min(nextFork, targetLength);
+              nextFork = Math.min(nextFork, branchLength);
             }
           }
         }
       } else {
-        // Sympodial growth pattern
+        // Dichotomous growth pattern
 
         let nextFork = branchLength;
         while (branchLevel < branchStack.length) {
           maxIterations -= 1;
 
-          targetLength = estimateTotalLength(nextFork, branchLevel);
-
           // Add segments until we reach the next fork point.
           while (currentLength < nextFork) {
             const len = Math.min(segmentLength, nextFork - currentLength);
-            const radius = branchRadius * Math.pow(taper, (currentLength + len) / targetLength);
-            addSegment(len, radius);
+            branchRadius *= Math.pow(taper, len * contractionRate);
+            addSegment(len, branchRadius);
           }
 
           if (branchLevel >= branchStack.length) {
@@ -515,35 +541,33 @@ export class MeshGenerator {
           const { angle, axis, length, symmetry, deflect } = branchStack[branchLevel].values;
           const branchAngle = this.rnd.next(...angle);
           branchRotation += this.rnd.next(...axis);
-          const radius = branchRadius * Math.pow(taper, nextFork / targetLength);
           for (let i = 1; i < symmetry; i += 1) {
             const childLength = this.rnd.next(...length);
             forkChildBranch(
               branchRotation + (i * Math.PI * 2) / symmetry,
               -branchAngle,
-              currentLength,
+              0,
               childLength,
-              radius,
+              branchRadius * 0.9,
               1
             );
           }
 
-          const childLength = this.rnd.next(...length);
           if (symmetry > 1) {
             rotation.makeRotationY(branchRotation * this.rnd.next(...deflect));
             rotation.multiply(tmpMatrix.makeRotationX(-branchAngle));
             transform.multiply(rotation);
           }
-          // transform.multiply(tmpMatrix.makeTranslation(0, childLength, 0));
 
+          const childLength = this.rnd.next(...length);
           nextFork = currentLength + childLength;
           branchLevel += 1;
         }
 
         while (currentLength < nextFork) {
           const len = Math.min(segmentLength, nextFork - currentLength);
-          const radius = branchRadius * Math.pow(taper, (currentLength + len) / targetLength);
-          addSegment(len, radius);
+          branchRadius *= Math.pow(taper, len * contractionRate);
+          addSegment(len, branchRadius);
         }
       }
 
@@ -577,7 +601,7 @@ export class MeshGenerator {
       }
     };
 
-    grow(new Matrix4(), 0, trunkLength, trunkRadius, 1, 0);
+    grow(new Matrix4(), trunkLength, trunkRadius, 1, 0);
   }
 
   private addBranchEnd(positionArray: number[], transform: Matrix4) {

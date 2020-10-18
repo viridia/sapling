@@ -2,10 +2,10 @@
 
 ## Next
 
+* Bug in dichotomous radii.
 * Twigs!
   * Whether a branch has leaves
   * Or perhaps a 'minLevel' for leaves
-* Finish enum props
 * Redo color gradients
   * Simplify to two colors
   * Add gradient direction
