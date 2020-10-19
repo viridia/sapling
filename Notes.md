@@ -2,10 +2,11 @@
 
 ## Next
 
-* Bug in dichotomous radii.
 * Twigs!
   * Whether a branch has leaves
   * Or perhaps a 'minLevel' for leaves
+* Leaf shape
+  * Redo rake calculation
 * Redo color gradients
   * Simplify to two colors
   * Add gradient direction
@@ -23,13 +24,7 @@
 * Leaf Gradients.
   * Gradient length
 
-* Replace color editing with gradient editing?
-
 # Bugs
 
 * Double-check log scale formula.
 * Finish log scale for range props
-
-# Minor features
-
-* Serialize enums?

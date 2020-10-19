@@ -1,8 +1,17 @@
+import Prando from 'prando';
 import { Box2, Color } from 'three';
 import { LeafSplineSegment, LeafStamp } from './leaf';
 
+enum GradientDirection {
+  Lateral = 0,
+  Axial = 1,
+}
+
 interface LeafImageProps {
-  colors: number[];
+  innerColor: number,
+  outerColor: number,
+  gradientDirection: number;
+  variation: number;
 }
 
 const showGrid = false;
@@ -12,10 +21,9 @@ export function drawLeafTexture(
   leaf: LeafSplineSegment[],
   stamps: LeafStamp[],
   bounds: Box2,
+  rnd: Prando,
   props: LeafImageProps
 ) {
-  const [color0, color1] = props.colors;
-  const [color2, color3] = props.colors;
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.resetTransform();
@@ -70,26 +78,40 @@ export function drawLeafTexture(
       ctx.stroke();
     }
 
-    // Fill leafs with gradient colors
-    const gradient1 = ctx.createLinearGradient(-maxWidth * 0.6, 0, maxWidth * 0.6, 0);
-    // const gradient1 = ctx.createLinearGradient(0, 0, 0, maxLength);
-    gradient1.addColorStop(0, new Color(color1).getStyle());
-    gradient1.addColorStop(0.5, new Color(color0).getStyle());
-    gradient1.addColorStop(0.5, new Color(color2).getStyle());
-    gradient1.addColorStop(1, new Color(color3).getStyle());
-
-    // const gradient2 = ctx.createLinearGradient(0, 0, -maxWidth * 0.6, 0);
-    // gradient2.addColorStop(0, new Color(color2).getStyle());
-    // gradient2.addColorStop(1, new Color(color3).getStyle());
+    let gradient: CanvasGradient;
 
     for (const stamp of stamps) {
-      ctx.resetTransform();
+      const innerColor = new Color(props.innerColor);
+      const outerColor = new Color(props.outerColor);
+
+      const hueOffset = props.variation * rnd.next(-1, 1) * 0.4;
+      const lightnessOffset = props.variation * rnd.next(-1, 1) * 0.4;
+      innerColor.offsetHSL(hueOffset, 0, lightnessOffset);
+      outerColor.offsetHSL(hueOffset, 0, lightnessOffset);
+
+      // Fill leafs with gradient colors
+      if (props.gradientDirection === GradientDirection.Axial) {
+        gradient = ctx.createLinearGradient(0, 0, 0, maxLength);
+        gradient.addColorStop(0, innerColor.getStyle());
+        gradient.addColorStop(1, outerColor.getStyle());
+      } else {
+        gradient = ctx.createLinearGradient(-maxWidth * 0.6, 0, maxWidth * 0.6, 0);
+        // const gradient1 = ctx.createLinearGradient(0, 0, 0, maxLength);
+        gradient.addColorStop(0, outerColor.getStyle());
+        gradient.addColorStop(0.5, innerColor.getStyle());
+        gradient.addColorStop(0.5, innerColor.getStyle());
+        gradient.addColorStop(1, outerColor.getStyle());
+      }
+
+        ctx.resetTransform();
       ctx.transform(sx, 0, 0, sy, -(bounds.min.x * sx), -(bounds.min.y * sy));
       ctx.translate(stamp.translate.x, stamp.translate.y);
       ctx.scale(stamp.scale, stamp.scale);
       ctx.rotate(stamp.angle);
-      ctx.fillStyle = gradient1;
+      ctx.fillStyle = gradient;
+      ctx.strokeStyle = '#00000044';
       drawLeafPath(ctx, leaf, 'both');
+      ctx.stroke();
       ctx.fill();
     }
   }

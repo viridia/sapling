@@ -19,6 +19,7 @@ import {
 import { OutlineMaterial } from './materials/OutlineMaterial';
 import {
   addGlobalListener,
+  BooleanProperty,
   ColorProperty,
   ComputedProperty,
   FloatProperty,
@@ -92,6 +93,7 @@ class BranchProps extends PropertyGroup {
     precision: 2,
   });
   angle = new RangeProperty({ init: [0.51, 0.61], min: 0, max: 2.5, increment: 0.01 });
+  angleBias = new FloatProperty({ init: 0, min: -1, max: 1, increment: 0.01, enabled: monopodial });
   symmetry = new IntegerProperty({ init: 2, min: 1, max: 3 });
   deflect = new RangeProperty({
     init: [1, 1],
@@ -101,6 +103,10 @@ class BranchProps extends PropertyGroup {
     enabled: notMonopodial,
   });
   flex = new FloatProperty({ init: 0, min: -1, max: 1, increment: 0.1 });
+  leaves = new BooleanProperty({
+    init: false,
+    enabled: monopodial,
+  });
 }
 
 class LeavesProps extends PropertyGroup {
@@ -415,6 +421,7 @@ export class MeshGenerator {
       let prevRingIndex = positionArray.length / 3;
       let branchRotation = Math.PI / 2;
       let currentLength = 0;
+      let hasLeaves = false;
 
       branchLength *= branchScale;
 
@@ -477,10 +484,21 @@ export class MeshGenerator {
             branchRadius *= Math.pow(taper, len * contractionRate);
             addSegment(len, branchRadius);
           }
+          hasLeaves = true;
         } else {
-          const { angle, axis, length, interval, symmetry, branchAt, lengthTaper } = branchStack[
-            branchLevel
-          ].values;
+          const {
+            angle,
+            angleBias,
+            axis,
+            length,
+            interval,
+            symmetry,
+            branchAt,
+            lengthTaper,
+            leaves,
+          } = branchStack[branchLevel].values;
+
+          hasLeaves = leaves;
 
           const firstFork = Math.min(
             branchLength,
@@ -499,8 +517,8 @@ export class MeshGenerator {
             }
 
             while (nextFork <= currentLength && nextFork < branchLength) {
-              const relativePosition = (branchLength - nextFork) / (branchLength - firstFork);
-              const branchAngle = this.rnd.next(...angle);
+              const relativePosition = (nextFork - firstFork) / (branchLength - firstFork);
+              const branchAngle = this.rnd.next(...angle) + relativePosition * angleBias;
               branchRotation += this.rnd.next(...axis);
               const forkRadius =
                 branchRadius * Math.pow(taper, (nextFork - currentLength) * contractionRate);
@@ -511,7 +529,7 @@ export class MeshGenerator {
                   nextFork - currentLength,
                   this.rnd.next(...length),
                   forkRadius * 0.9,
-                  branchScale * (1 + (relativePosition - 1) * lengthTaper)
+                  branchScale * (1 - relativePosition * lengthTaper)
                 );
               }
 
@@ -523,6 +541,7 @@ export class MeshGenerator {
       } else {
         // Dichotomous growth pattern
 
+        hasLeaves = true;
         let nextFork = branchLength;
         while (branchLevel < branchStack.length) {
           maxIterations -= 1;
@@ -580,7 +599,7 @@ export class MeshGenerator {
         indexArray.push(prevRingIndex + i, prevRingIndex + i2, endpointIndex);
       }
 
-      if (!monopodial || branchLevel === branchStack.length) {
+      if (hasLeaves) {
         position.setFromMatrixPosition(transform);
         rotation.extractRotation(transform);
         forward.set(0, 1, 0).applyMatrix4(rotation).normalize();
@@ -754,9 +773,6 @@ export class MeshGenerator {
   }
 
   private drawTexture(leaf: LeafSplineSegment[], stamps: LeafStamp[], bounds: Box2) {
-    const colors = this.properties.leafColor.values;
-    drawLeafTexture(this.canvas, leaf, stamps, bounds, {
-      colors: [colors.innerColor, colors.outerColor],
-    });
+    drawLeafTexture(this.canvas, leaf, stamps, bounds, this.rnd, this.properties.leafColor.values);
   }
 }
