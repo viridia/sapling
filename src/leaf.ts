@@ -11,6 +11,14 @@ export interface LeafSplineSegment {
   y3: number;
 }
 
+export interface TwigStem {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  width: number;
+}
+
 export interface LeafStamp {
   angle: number;
   scale: number;

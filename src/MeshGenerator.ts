@@ -33,7 +33,7 @@ import {
 import Prando from 'prando';
 import download from 'downloadjs';
 import { buildLeafPath, calcLeafBounds } from './genLeafShape';
-import { LeafSplineSegment, LeafStamp } from './leaf';
+import { LeafStamp, TwigStem } from './leaf';
 import { drawLeafTexture } from './genLeafTexture';
 import { propertyMapToJson } from './properties/PropertyMap';
 // import { minimizeShadow } from './collision';
@@ -124,14 +124,13 @@ class LeavesProps extends PropertyGroup {
 class LeafShapeProps extends PropertyGroup {
   length = new FloatProperty({ init: 60, min: 20, max: 128, increment: 1 });
   numSegments = new IntegerProperty({ init: 1, min: 1, max: 12, increment: 1 });
-  serration = new FloatProperty({ init: 0, min: 0, max: 1 });
-  jitter = new FloatProperty({ init: 0, min: 0, max: 1 });
   baseWidth = new FloatProperty({ init: 0.27, min: 0.01, max: 1 });
   baseTaper = new FloatProperty({ init: 0, min: -1, max: 1 });
-  baseRake = new FloatProperty({ init: 0, min: 0, max: 1 });
   tipWidth = new FloatProperty({ init: 0.2, min: 0.01, max: 1 });
   tipTaper = new FloatProperty({ init: 0.41, min: -1, max: 1 });
-  tipRake = new FloatProperty({ init: 0, min: 0, max: 1 });
+  serration = new FloatProperty({ init: 0, min: 0, max: 1 });
+  rake = new FloatProperty({ init: 0, min: 0, max: 1 });
+  jitter = new FloatProperty({ init: 0, min: 0, max: 1 });
 }
 
 class LeafColorProps extends PropertyGroup {
@@ -321,26 +320,31 @@ export class MeshGenerator {
 
     // Compute the outline of a single leaf
     const leafProps = this.properties.leafShape;
-    const leafOutline = buildLeafPath(
-      {
-        length: leafProps.length.value,
-        baseWidth: leafProps.baseWidth.value,
-        baseTaper: leafProps.baseTaper.value,
-        tipWidth: leafProps.tipWidth.value,
-        tipTaper: leafProps.tipTaper.value,
-        numSegments: leafProps.numSegments.value,
-        baseRake: leafProps.baseRake.value,
-        tipRake: leafProps.tipRake.value,
-        serration: leafProps.serration.value,
-        jitter: leafProps.jitter.value,
-      },
-      this.rnd
-    );
+    const leafOutline = buildLeafPath(leafProps.values, this.rnd);
     const stamps = this.createLeafStamps();
-    const bounds = calcLeafBounds(leafOutline, stamps);
+    const twigStems: TwigStem[] = [
+      // {
+      //   x0: 0,
+      //   y0: 0,
+      //   x1: 50,
+      //   y1: -30,
+      //   width: 6,
+      // },
+      // {
+      //   x0: 0,
+      //   y0: 0,
+      //   x1: -30,
+      //   y1: 10,
+      //   width: 4,
+      // },
+    ];
+    const bounds = calcLeafBounds(leafOutline, stamps, twigStems);
 
     const leafTriangles = this.createLeafMesh(bounds);
-    this.drawTexture(leafOutline, stamps, bounds);
+    drawLeafTexture(this.canvas, leafOutline, stamps, twigStems, bounds, this.rnd, {
+      ...this.properties.leafColor.values,
+      stemColor: this.properties.trunk.color.value,
+    });
     this.leafTexture.needsUpdate = true;
 
     this.barkWireframe = new WireframeGeometry(this.barkGeometry);
@@ -770,9 +774,5 @@ export class MeshGenerator {
     }
 
     return result;
-  }
-
-  private drawTexture(leaf: LeafSplineSegment[], stamps: LeafStamp[], bounds: Box2) {
-    drawLeafTexture(this.canvas, leaf, stamps, bounds, this.rnd, this.properties.leafColor.values);
   }
 }

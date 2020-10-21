@@ -1,6 +1,6 @@
 import Prando from 'prando';
 import { Box2, Color } from 'three';
-import { LeafSplineSegment, LeafStamp } from './leaf';
+import { LeafSplineSegment, LeafStamp, TwigStem } from './leaf';
 
 enum GradientDirection {
   Lateral = 0,
@@ -10,6 +10,7 @@ enum GradientDirection {
 interface LeafImageProps {
   innerColor: number,
   outerColor: number,
+  stemColor: number,
   gradientDirection: number;
   variation: number;
 }
@@ -20,6 +21,7 @@ export function drawLeafTexture(
   canvas: HTMLCanvasElement,
   leaf: LeafSplineSegment[],
   stamps: LeafStamp[],
+  twigStems: TwigStem[],
   bounds: Box2,
   rnd: Prando,
   props: LeafImageProps
@@ -62,11 +64,27 @@ export function drawLeafTexture(
     //   bounds.max.y - bounds.min.y
     // );
 
-    // Draw outline around leaves
+    // Outline styles.
     ctx.strokeStyle = 'black';
     ctx.fillStyle = 'blue';
     ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.globalAlpha = 1;
+    ctx.lineWidth = 6.0;
+
+    // Stroke stem
+    ctx.resetTransform();
+    ctx.transform(sx, 0, 0, sy, -(bounds.min.x * sx), -(bounds.min.y * sy));
+    drawTwigPath(ctx, twigStems);
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    // for (const stem of twigStems) {
+    //   ctx.lineWidth = stem.width + 4;
+    //   // ctx.transform(1, 0, 0, 1, -(bounds.min.x), -(bounds.min.y));
+    //   ctx.stroke();
+    // }
+
+    // Draw outline around leaves
     for (const stamp of stamps) {
       ctx.resetTransform();
       ctx.transform(sx, 0, 0, sy, -(bounds.min.x * sx), -(bounds.min.y * sy));
@@ -78,7 +96,16 @@ export function drawLeafTexture(
       ctx.stroke();
     }
 
-    let gradient: CanvasGradient;
+    // Fill stem
+    ctx.lineWidth = 3.0;
+    ctx.strokeStyle = new Color(props.stemColor).getStyle();
+    ctx.resetTransform();
+    ctx.transform(sx, 0, 0, sy, -(bounds.min.x * sx), -(bounds.min.y * sy));
+    drawTwigPath(ctx, twigStems);
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    // for (const stem of twigStems) {
+    // }
 
     for (const stamp of stamps) {
       const innerColor = new Color(props.innerColor);
@@ -90,6 +117,7 @@ export function drawLeafTexture(
       outerColor.offsetHSL(hueOffset, 0, lightnessOffset);
 
       // Fill leafs with gradient colors
+      let gradient: CanvasGradient;
       if (props.gradientDirection === GradientDirection.Axial) {
         gradient = ctx.createLinearGradient(0, 0, 0, maxLength);
         gradient.addColorStop(0, innerColor.getStyle());
@@ -103,13 +131,14 @@ export function drawLeafTexture(
         gradient.addColorStop(1, outerColor.getStyle());
       }
 
-        ctx.resetTransform();
+      ctx.resetTransform();
       ctx.transform(sx, 0, 0, sy, -(bounds.min.x * sx), -(bounds.min.y * sy));
       ctx.translate(stamp.translate.x, stamp.translate.y);
       ctx.scale(stamp.scale, stamp.scale);
       ctx.rotate(stamp.angle);
       ctx.fillStyle = gradient;
       ctx.strokeStyle = '#00000044';
+      ctx.lineWidth = 2.0 / stamp.scale;
       drawLeafPath(ctx, leaf, 'both');
       ctx.stroke();
       ctx.fill();
@@ -147,4 +176,15 @@ function drawLeafPath(
   }
 
   ctx.closePath();
+}
+
+function drawTwigPath(
+  ctx: CanvasRenderingContext2D,
+  stems: TwigStem[],
+) {
+  ctx.beginPath();
+  for (const stem of stems) {
+    ctx.moveTo(stem.x0, stem.y0);
+    ctx.lineTo(stem.x1, stem.y1);
+  }
 }

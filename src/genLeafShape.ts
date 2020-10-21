@@ -1,6 +1,6 @@
 import Prando from 'prando';
 import { Box2, Matrix3, Vector2 } from 'three';
-import { LeafSplineSegment, LeafStamp } from './leaf';
+import { LeafSplineSegment, LeafStamp, TwigStem } from './leaf';
 
 interface LeafProps {
   length: number;
@@ -9,8 +9,7 @@ interface LeafProps {
   tipWidth: number;
   tipTaper: number;
   numSegments: number;
-  baseRake: number;
-  tipRake: number;
+  rake: number;
   serration: number;
   jitter: number;
 }
@@ -94,20 +93,19 @@ function addSerration(
   props: LeafProps,
   rnd: Prando
 ) {
-  const { baseRake, tipRake, serration, jitter } = props;
+  const { rake, serration, jitter } = props;
   const pointyness = 40 * serration;
 
   for (let i = 0; i < segments.length - 1; i += 1) {
     const s = segments[i];
 
     // The tangent of the curve at the end of the segment.
-    const tangent = new Vector2(s.x3 - s.x0, s.y3 - s.y0).normalize();
+    const tangent = new Vector2(s.x3 - s.x2, s.y3 - s.y2).normalize();
     const normal = new Vector2(tangent.y, -tangent.x);
-    const rake = baseRake + (i / segments.length) * (tipRake - baseRake) - 0.5;
     const displacement = normal
       .clone()
       .multiplyScalar(pointyness)
-      .add(tangent.clone().multiplyScalar((rake * length) / segments.length));
+      .add(tangent.clone().multiplyScalar((rake * length * 2) / segments.length));
     displacement.x += rnd.next(-10, 10) * jitter;
     displacement.y += rnd.next(-10, 10) * jitter;
 
@@ -129,7 +127,7 @@ function addSerration(
   segments[segments.length - 1].y2 += pointyness;
 }
 
-export function calcLeafBounds(leaf: LeafSplineSegment[], stamps: LeafStamp[]) {
+export function calcLeafBounds(leaf: LeafSplineSegment[], stamps: LeafStamp[], stems: TwigStem[]) {
   const bounds = new Box2();
   const transform = new Matrix3();
   const v = new Vector2();
@@ -154,6 +152,16 @@ export function calcLeafBounds(leaf: LeafSplineSegment[], stamps: LeafStamp[]) {
       bounds.expandByPoint(v.set(-segment.x3, segment.y3).applyMatrix3(transform));
     }
   }
+
+  for (const stem of stems) {
+    bounds.expandByPoint(v.set(stem.x0, stem.y0));
+    bounds.expandByPoint(v.set(-stem.x0, stem.y0));
+
+    bounds.expandByPoint(v.set(stem.x1, stem.y1));
+    bounds.expandByPoint(v.set(-stem.x1, stem.y1));
+  }
+
+  bounds.expandByScalar(2);
 
   // Make the bounding-box square while still surrounding the figure.
   const size = bounds.getSize(v);
