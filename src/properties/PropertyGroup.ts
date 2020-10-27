@@ -28,14 +28,14 @@ export class PropertyGroup implements SerializableGroup {
   }
 
   public reset(): void {
-    ColorProperty.syncColor = true;
+    ColorProperty.updateHSL = true;
     Object.getOwnPropertyNames(this).forEach(name => {
       const prop = (this as any)[name] as Property<any, any>;
       if (prop?.reset) {
         prop?.reset();
       }
     });
-    ColorProperty.syncColor = false;
+    ColorProperty.updateHSL = false;
   }
 
   public toJson(): any {
@@ -94,16 +94,16 @@ export class PropertyGroup implements SerializableGroup {
             break;
           }
           case 'color': {
-            const saveSyncColor = ColorProperty.syncColor;
+            const saveSyncColor = ColorProperty.updateHSL;
             if (typeof value === 'number') {
-              ColorProperty.syncColor = true;
+              ColorProperty.updateHSL = true;
               prop.update(value);
-              ColorProperty.syncColor = saveSyncColor;
+              ColorProperty.updateHSL = saveSyncColor;
             } else if (typeof value === 'string') {
               const color = new Color(value);
-              ColorProperty.syncColor = true;
+              ColorProperty.updateHSL = true;
               prop.update(color.getHex());
-              ColorProperty.syncColor = saveSyncColor;
+              ColorProperty.updateHSL = saveSyncColor;
             } else {
               console.warn(`incorrect type for property: ${propName}: ${typeof value}`)
             }

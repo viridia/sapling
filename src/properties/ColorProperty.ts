@@ -1,7 +1,7 @@
 import { Property, PropertyDefn } from './Property';
 
 export class ColorProperty extends Property<number, PropertyDefn<number>> {
-  static syncColor = false;
+  static updateHSL = false;
 
   constructor(defn: PropertyDefn<number>) {
     super('color', defn.init || 0, defn);

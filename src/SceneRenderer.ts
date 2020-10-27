@@ -53,7 +53,7 @@ export class SceneRenderer {
       this.sceneChanged();
     });
 
-    this.start();
+    this.sceneChanged();
   }
 
   public dispose() {
@@ -96,19 +96,13 @@ export class SceneRenderer {
   }
 
   private render() {
+    this.frameId = null;
     this.updateCameraPosition();
     if (this.generator.isModified) {
       this.generator.generate();
     }
 
-    this.frameId = null;
     this.renderer.render(this.scene, this.camera);
-  }
-
-  private start() {
-    if (!this.frameId) {
-      this.frameId = window.requestAnimationFrame(this.render);
-    }
   }
 
   private sceneChanged() {

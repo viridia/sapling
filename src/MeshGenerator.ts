@@ -37,6 +37,7 @@ import { buildLeafPath, calcLeafBounds } from './genLeafShape';
 import { LeafStamp, TwigStem } from './leaf';
 import { drawLeafTexture } from './genLeafTexture';
 import { propertyMapToJson } from './properties/PropertyMap';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 // import { minimizeShadow } from './collision';
 
 const GLTFExporter = require('./third-party/GLTFExporter.js');
@@ -243,6 +244,28 @@ export class MeshGenerator {
       const props = (this.properties as PropertyMap)[key];
       props?.fromJson(json[key]);
     }
+  }
+
+  public fromFile(file: File) {
+    const loader = new GLTFLoader();
+    loader.load(
+      URL.createObjectURL(file),
+      gltf => {
+        const json = gltf.scene?.userData?.sapling;
+        if (json) {
+          let name = file.name;
+          const index = name.lastIndexOf('.');
+          this.name = name.substr(0, index);
+          this.fromJson(json);
+        } else {
+          window.alert('Model file does not contain Sapling metadata.');
+        }
+      },
+      undefined,
+      error => {
+        console.error(error);
+      }
+    );
   }
 
   public downloadGltf(name: string) {

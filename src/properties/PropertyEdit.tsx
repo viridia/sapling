@@ -94,7 +94,9 @@ export const ColorPropertyEdit: FC<{ name: string; property: ColorProperty }> = 
 
   const onChange = useCallback(
     (value: number) => {
-      if (!ColorProperty.syncColor) {
+      // Changing the value triggers an onChange callback in the color editor due to HSL
+      // conversion, we don't want that to happen if we're updating HSL.
+      if (!ColorProperty.updateHSL) {
         color.setHex(value);
         property.update(value);
       }
@@ -106,7 +108,8 @@ export const ColorPropertyEdit: FC<{ name: string; property: ColorProperty }> = 
     () =>
       property.subscribe(value => {
         color.setHex(value);
-        if (ColorProperty.syncColor) {
+        // Trigger an HSL conversion
+        if (ColorProperty.updateHSL) {
           setColor(color.clone());
         }
       }),

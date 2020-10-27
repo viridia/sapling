@@ -2,7 +2,6 @@
 
 ## Next
 
-* Drag and drop to load
 * Leaf droop based on gravity
 * Flat leaves (i.e. independent of branch direction)
 * Twigs!

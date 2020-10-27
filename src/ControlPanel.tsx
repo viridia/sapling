@@ -6,7 +6,6 @@ import { useDialogState } from './controls/Dialog';
 import { DownloadNameDialog } from './DownloadNameDialog';
 import { MeshGenerator } from './MeshGenerator';
 import { colors } from './styles';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
   PropertyGroupEdit,
   PropertyMap,
@@ -105,25 +104,7 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
   const onFileChanged = useCallback(() => {
     if (fileInput.current && fileInput.current.files && fileInput.current.files.length > 0) {
       const file = fileInput.current.files[0];
-      const loader = new GLTFLoader();
-      loader.load(
-        URL.createObjectURL(file),
-        gltf => {
-          const json = gltf.scene?.userData?.sapling;
-          if (json) {
-            generator.fromJson(json);
-            let name = file.name;
-            const index = name.lastIndexOf('.');
-            setName(name.substr(0, index));
-          } else {
-            window.alert('Model file does not contain Sapling metadata.');
-          }
-        },
-        undefined,
-        error => {
-          console.error(error);
-        }
-      );
+      generator.fromFile(file);
     }
   }, [generator]);
 
