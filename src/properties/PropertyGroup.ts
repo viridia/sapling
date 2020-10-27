@@ -94,15 +94,16 @@ export class PropertyGroup implements SerializableGroup {
             break;
           }
           case 'color': {
+            const saveSyncColor = ColorProperty.syncColor;
             if (typeof value === 'number') {
               ColorProperty.syncColor = true;
               prop.update(value);
-              ColorProperty.syncColor = false;
+              ColorProperty.syncColor = saveSyncColor;
             } else if (typeof value === 'string') {
               const color = new Color(value);
               ColorProperty.syncColor = true;
               prop.update(color.getHex());
-              ColorProperty.syncColor = false;
+              ColorProperty.syncColor = saveSyncColor;
             } else {
               console.warn(`incorrect type for property: ${propName}: ${typeof value}`)
             }

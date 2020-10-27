@@ -2,6 +2,7 @@ import React, { FC, useCallback, useLayoutEffect, useState } from 'react';
 import { Button } from './controls/Button';
 import { TextInput } from './controls/TextInput';
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from './controls/Dialog';
+import styled from '@emotion/styled';
 
 interface Props {
   name: string;
@@ -11,6 +12,13 @@ interface Props {
   onChangeName: (name: string) => void;
   onDownload: () => void;
 }
+
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  align-self: stretch;
+`;
 
 export const DownloadNameDialog: FC<Props> = ({
   name,
@@ -35,18 +43,28 @@ export const DownloadNameDialog: FC<Props> = ({
     [onChangeName]
   );
 
+  const onSubmit = useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      onDownload();
+    },
+    [onDownload]
+  );
+
   return (
     <Dialog open={open} onClose={onClose} onExited={onExited} ariaLabel="Download Model">
       <DialogHeader>Download Model</DialogHeader>
       <DialogBody>
         <p>Set name for downloaded file:</p>
-        <TextInput
-          ref={setInputRef}
-          type="text"
-          autoFocus
-          value={name}
-          onChange={onChange}
-        ></TextInput>
+        <Form onSubmit={onSubmit}>
+          <TextInput
+            ref={setInputRef}
+            type="text"
+            autoFocus
+            value={name}
+            onChange={onChange}
+          ></TextInput>
+        </Form>
       </DialogBody>
       <DialogFooter>
         <Button onClick={onClose}>Cancel</Button>

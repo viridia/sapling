@@ -108,8 +108,8 @@ export function drawLeafTexture(
     // }
 
     for (const stamp of stamps) {
-      const innerColor = new Color(props.innerColor);
-      const outerColor = new Color(props.outerColor);
+      const innerColor = new Color(props.innerColor).convertLinearToSRGB();
+      const outerColor = new Color(props.outerColor).convertLinearToSRGB();
 
       const hueOffset = props.variation * rnd.next(-1, 1) * 0.4;
       const lightnessOffset = props.variation * rnd.next(-1, 1) * 0.4;

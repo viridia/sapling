@@ -18,13 +18,7 @@ export const BooleanPropertyEdit: FC<{ name: string; property: BooleanProperty }
 }) => {
   const [value, setValue] = useProperty(property);
 
-  return (
-    <BooleanEditor
-      name={name}
-      value={value}
-      onChange={setValue}
-    />
-  );
+  return <BooleanEditor name={name} value={value} onChange={setValue} />;
 };
 
 export const IntegerPropertyEdit: FC<{ name: string; property: IntegerProperty }> = ({
@@ -35,14 +29,7 @@ export const IntegerPropertyEdit: FC<{ name: string; property: IntegerProperty }
   const { min, max, enumVals } = property.defn;
 
   if (enumVals) {
-    return (
-      <EnumEditor
-        name={name}
-        value={value}
-        enumVals={enumVals!}
-        onChange={setValue}
-      />
-    );
+    return <EnumEditor name={name} value={value} enumVals={enumVals!} onChange={setValue} />;
   }
 
   return (
@@ -107,18 +94,20 @@ export const ColorPropertyEdit: FC<{ name: string; property: ColorProperty }> = 
 
   const onChange = useCallback(
     (value: number) => {
-      color.setHex(value);
-      property.update(value);
+      if (!ColorProperty.syncColor) {
+        color.setHex(value);
+        property.update(value);
+      }
     },
     [color, property]
   );
 
   useEffect(
     () =>
-      property.subscribe((value) => {
-        color.setHex(property.value);
+      property.subscribe(value => {
+        color.setHex(value);
         if (ColorProperty.syncColor) {
-          setColor(new Color(color));
+          setColor(color.clone());
         }
       }),
     [color, property]

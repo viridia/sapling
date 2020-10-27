@@ -60,29 +60,37 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
 
   useEffect(() => {
     try {
-      const json = localStorage.getItem('sapling-doc');
-      if (json) {
-        generator.fromJson(JSON.parse(json));
+      const str = localStorage.getItem('sapling-doc');
+      if (str) {
+        const json = JSON.parse(str);
+        generator.fromJson(json);
+        generator.name = json?.name || 'tree-model';
       }
     } catch (e) {
       console.error('Invalid JSON', e);
     }
 
     const onUnload = () => {
-      localStorage.setItem('sapling-doc', JSON.stringify(generator.toJson()));
+      const json = generator.toJson();
+      json.name = generator.name;
+      localStorage.setItem('sapling-doc', JSON.stringify(json));
     };
 
     window.addEventListener('unload', onUnload);
     return () => window.removeEventListener('unload', onUnload);
   }, [generator]);
 
-  const onClickReset = useCallback(() => generator.reset(), [generator]);
-
-  const onClickSave = useCallback(() => {
-    setOpen(true);
-  }, [setOpen]);
+  const onClickReset = useCallback(() => {
+    generator.reset();
+    generator.name = 'tree-model';
+  }, [generator]);
 
   const onClickDownload = useCallback(() => {
+    setName(generator.name);
+    setOpen(true);
+  }, [setOpen, generator]);
+
+  const onClickDownloadConfirm = useCallback(() => {
     setOpen(false);
     generator.downloadGltf(name);
   }, [generator, setOpen, name]);
@@ -104,6 +112,9 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
           const json = gltf.scene?.userData?.sapling;
           if (json) {
             generator.fromJson(json);
+            let name = file.name;
+            const index = name.lastIndexOf('.');
+            setName(name.substr(0, index));
           } else {
             window.alert('Model file does not contain Sapling metadata.');
           }
@@ -128,7 +139,7 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
       })}
       <ButtonGroup>
         <Button onClick={onClickReset}>Reset</Button>
-        <Button onClick={onClickSave}>Download&hellip;</Button>
+        <Button onClick={onClickDownload}>Download&hellip;</Button>
         <Button onClick={onClickLoad}>Load&hellip;</Button>
       </ButtonGroup>
       <form style={{ display: 'none' }}>
@@ -139,7 +150,7 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
           {...dialogProps}
           name={name}
           onChangeName={setName}
-          onDownload={onClickDownload}
+          onDownload={onClickDownloadConfirm}
         />
       )}
     </ControlPanelElt>

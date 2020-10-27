@@ -2,21 +2,17 @@
 
 ## Next
 
+* Drag and drop to load
+* Leaf droop based on gravity
+* Flat leaves (i.e. independent of branch direction)
 * Twigs!
+  * Basic problem with sprited twigs is that we can't change twig length per branch.
   * Whether a branch has leaves
   * Or perhaps a 'minLevel' for leaves
-* Leaf shape
-  * Redo rake calculation
-* Redo color gradients
-  * Simplify to two colors
-  * Add gradient direction
-  * Add color jitter
 * Color hex edit
 * Help pane?
   * Descriptions for properties?
 * Uniform leaf sizes for non-monos
-* Flat leaves (i.e. independent of branch direction)
-* Leaf droop based on gravity
 * Bark material?
 
 * I need a way to be confident that I won't lose designs as I make more.
@@ -28,3 +24,7 @@
 
 * Double-check log scale formula.
 * Finish log scale for range props
+
+# Refactoring
+
+* EditableProperty

@@ -12,6 +12,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   Scene,
+  sRGBEncoding,
   Vector2,
   Vector3,
   WireframeGeometry,
@@ -144,6 +145,7 @@ const newBranchGroup = () => new BranchProps();
 
 /** Class which generates a collection of meshes and geometry for the tree model. */
 export class MeshGenerator {
+  public name = 'tree-model';
   private modified = true;
   private unsubscribe: UnsubscribeCallback;
 
@@ -209,6 +211,7 @@ export class MeshGenerator {
     this.canvas.style.zIndex = '100';
     this.leafTexture = new CanvasTexture(this.canvas);
     this.leafMaterial.map = this.leafTexture;
+    this.leafMaterial.map.encoding = sRGBEncoding;
   }
 
   public dispose() {
@@ -260,7 +263,8 @@ export class MeshGenerator {
     group.children.push(this.barkMesh, this.barkOutlineMesh, this.leafMesh);
 
     // Add custom data
-    this.barkOutlineMaterial.userData = { outline: 0.008 };
+    this.barkOutlineMaterial.userData = { outline: 0.01 };
+    this.leafMaterial.userData = { billboard: true };
 
     // Instantiate a exporter
     const exporter = new GLTFExporter();
@@ -270,6 +274,7 @@ export class MeshGenerator {
         binary
           ? download(gltf, `${name}.glb`, 'model/gltf-binary')
           : download(JSON.stringify(gltf), `${name}.gltf`, 'model/gltf-binary');
+        this.name = name;
       },
       { binary }
     );
