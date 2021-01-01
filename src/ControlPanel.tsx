@@ -1,9 +1,7 @@
 import styled from '@emotion/styled';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { FC } from 'react';
 import { Button } from './controls/Button';
-import { useDialogState } from './controls/Dialog';
-import { DownloadNameDialog } from './DownloadNameDialog';
 import { MeshGenerator } from './MeshGenerator';
 import { colors } from './styles';
 import {
@@ -12,6 +10,7 @@ import {
   RepeatingPropertyGroup,
   RepeatingPropertyGroupEdit,
 } from './properties';
+const { ipcRenderer } = window.require('electron');
 
 const ControlPanelElt = styled.aside`
   background-color: ${colors.controlPaletteBg};
@@ -43,9 +42,21 @@ const ControlPanelElt = styled.aside`
 `;
 
 const ButtonGroup = styled.section`
+  align-self: stretch;
   > button {
-    margin-right: 4px;
+    margin-right: -1px;
+    flex: 1;
+
+    &:not(:last-child) {
+      border-top-right-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+    &:not(:first-child) {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
   }
+  margin-bottom: 4px;
 `;
 
 interface Props {
@@ -53,9 +64,7 @@ interface Props {
 }
 
 export const ControlPanel: FC<Props> = ({ generator }) => {
-  const fileInput = useRef<HTMLInputElement>(null);
-  const { dialogProps, visible, setOpen } = useDialogState();
-  const [name, setName] = useState('tree-model');
+  const [, forceRefresh] = useState({});
 
   useEffect(() => {
     try {
@@ -64,6 +73,7 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
         const json = JSON.parse(str);
         generator.fromJson(json);
         generator.name = json?.name || 'tree-model';
+        generator.filePath = json?.filePath || undefined;
       }
     } catch (e) {
       console.error('Invalid JSON', e);
@@ -72,6 +82,7 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
     const onUnload = () => {
       const json = generator.toJson();
       json.name = generator.name;
+      json.filePath = generator.filePath;
       localStorage.setItem('sapling-doc', JSON.stringify(json));
     };
 
@@ -79,37 +90,50 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
     return () => window.removeEventListener('unload', onUnload);
   }, [generator]);
 
+  useEffect(() => {
+    const handler = () => {
+      forceRefresh({});
+    };
+    return generator.fileChanged.subscribe(handler);
+  }, [generator]);
+
   const onClickReset = useCallback(() => {
     generator.reset();
     generator.name = 'tree-model';
+    generator.filePath = undefined;
+    generator.fileChanged.emit();
   }, [generator]);
 
-  const onClickDownload = useCallback(() => {
-    setName(generator.name);
-    setOpen(true);
-  }, [setOpen, generator]);
+  const onClickSave = useCallback(() => {
+    generator.saveToFile(generator.filePath!);
+  }, [generator]);
 
-  const onClickDownloadConfirm = useCallback(() => {
-    setOpen(false);
-    generator.downloadGltf(name);
-  }, [generator, setOpen, name]);
+  const onClickSaveAs = useCallback(() => {
+    ipcRenderer
+      .invoke('open-save-as', `${generator.name}.glb`, generator.filePath)
+      .then(filePath => {
+        if (filePath) {
+          generator.saveToFile(filePath);
+        }
+      });
+  }, [generator]);
 
-  const onClickLoad = useCallback(() => {
-    if (fileInput.current) {
-      fileInput.current.value = '';
-      fileInput.current.click();
-    }
-  }, []);
-
-  const onFileChanged = useCallback(() => {
-    if (fileInput.current && fileInput.current.files && fileInput.current.files.length > 0) {
-      const file = fileInput.current.files[0];
-      generator.fromFile(file);
-    }
+  const onClickOpen = useCallback(() => {
+    ipcRenderer.invoke('open-file').then(filePath => {
+      generator.readFromFile(filePath);
+    });
   }, [generator]);
 
   return (
     <ControlPanelElt>
+      <ButtonGroup>
+        <Button onClick={onClickReset}>Reset</Button>
+        <Button onClick={onClickSave} disabled={!generator.filePath}>
+          Save
+        </Button>
+        <Button onClick={onClickSaveAs}>Save As&hellip;</Button>
+        <Button onClick={onClickOpen}>Open&hellip;</Button>
+      </ButtonGroup>
       {Object.keys(generator.properties).map(key => {
         const group = (generator.properties as PropertyMap)[key];
         if (group instanceof RepeatingPropertyGroup) {
@@ -118,22 +142,6 @@ export const ControlPanel: FC<Props> = ({ generator }) => {
           return <PropertyGroupEdit key={key} group={group} groupName={key} />;
         }
       })}
-      <ButtonGroup>
-        <Button onClick={onClickReset}>Reset</Button>
-        <Button onClick={onClickDownload}>Download&hellip;</Button>
-        <Button onClick={onClickLoad}>Load&hellip;</Button>
-      </ButtonGroup>
-      <form style={{ display: 'none' }}>
-        <input ref={fileInput} type="file" accept="model/*" onChange={onFileChanged} />
-      </form>
-      {visible && (
-        <DownloadNameDialog
-          {...dialogProps}
-          name={name}
-          onChangeName={setName}
-          onDownload={onClickDownloadConfirm}
-        />
-      )}
     </ControlPanelElt>
   );
 };

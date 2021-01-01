@@ -38,6 +38,9 @@ import { LeafStamp, TwigStem } from './leaf';
 import { drawLeafTexture } from './genLeafTexture';
 import { propertyMapToJson } from './properties/PropertyMap';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { EventBus } from './EventBus';
+const fs = window.require('fs');
+const path = window.require('path');
 // import { minimizeShadow } from './collision';
 
 const GLTFExporter = require('./third-party/GLTFExporter.js');
@@ -147,6 +150,8 @@ const newBranchGroup = () => new BranchProps();
 /** Class which generates a collection of meshes and geometry for the tree model. */
 export class MeshGenerator {
   public name = 'tree-model';
+  public filePath: string | undefined = undefined;
+  public readonly fileChanged = new EventBus<void>();
   private modified = true;
   private unsubscribe: UnsubscribeCallback;
 
@@ -256,7 +261,9 @@ export class MeshGenerator {
           let name = file.name;
           const index = name.lastIndexOf('.');
           this.name = name.substr(0, index);
+          this.filePath = file.path;
           this.fromJson(json);
+          this.fileChanged.emit();
         } else {
           window.alert('Model file does not contain Sapling metadata.');
         }
@@ -268,26 +275,67 @@ export class MeshGenerator {
     );
   }
 
+  public readFromFile(filePath: string) {
+    this.setFilePath(filePath);
+    const data = fs.readFileSync(filePath);
+    const loader = new GLTFLoader();
+    loader.load(
+      URL.createObjectURL(new Blob([data])),
+      gltf => {
+        const json = gltf.scene?.userData?.sapling;
+        if (json) {
+          this.fromJson(json);
+          this.fileChanged.emit();
+        } else {
+          window.alert('Model file does not contain Sapling metadata.');
+        }
+      },
+      undefined,
+      error => {
+        console.error(error);
+      }
+    );
+  }
+
+  public saveToFile(filePath: string) {
+    this.setFilePath(filePath);
+
+    // Temporary scene containing just what we want to export.
+    const scene = new Scene();
+    scene.name = this.name;
+    scene.userData = { sapling: this.toJson() };
+
+    this.barkMesh.userData = { outline: 0.01 };
+    this.leafMesh.userData = { billboard: true };
+
+    // Do this instead of calling 'add' to prevent breakage of the original scene hierarchy.
+    scene.children.push(this.barkMesh, this.leafMesh);
+
+    // Instantiate a exporter
+    const exporter = new GLTFExporter();
+    exporter.parse(
+      scene,
+      (gltf: any) => {
+        // console.log(gltf);
+        fs.writeFileSync(this.filePath!, Buffer.from(gltf));
+      },
+      { binary: true }
+    );
+  }
+
   public downloadGltf(name: string) {
     const binary = true;
 
     // Temporary scene containing just what we want to export.
     const scene = new Scene();
-    scene.name = 'sapling';
+    scene.name = name;
     scene.userData = { sapling: this.toJson() };
 
-    // Make a group representing the whole tree.
-    const group = new Group();
-    group.name = name;
-    scene.add(group);
+    this.barkMesh.userData = { outline: 0.01 };
+    this.leafMesh.userData = { billboard: true };
 
     // Do this instead of calling 'add' to prevent breakage of the original scene hierarchy.
-    // TODO: Make outline mesh optional
-    group.children.push(this.barkMesh, this.barkOutlineMesh, this.leafMesh);
-
-    // Add custom data
-    this.barkOutlineMaterial.userData = { outline: 0.01 };
-    this.leafMaterial.userData = { billboard: true };
+    scene.children.push(this.barkMesh, this.leafMesh);
 
     // Instantiate a exporter
     const exporter = new GLTFExporter();
@@ -341,7 +389,7 @@ export class MeshGenerator {
     this.barkGeometry.setAttribute('position', new Float32BufferAttribute(positionArray, 3));
     this.barkGeometry.computeVertexNormals();
     this.barkMesh.geometry = this.barkGeometry;
-    this.barkMaterial.color = new Color(trunkProps.color.value);
+    this.barkMaterial.color = new Color(trunkProps.color.value).convertSRGBToLinear();
     this.barkMaterial.name = 'bark';
     this.barkOutlineMesh.geometry = this.barkGeometry;
     this.barkOutlineMaterial.name = 'outline';
@@ -388,6 +436,15 @@ export class MeshGenerator {
 
     this.triangleCount.update(indexArray.length / 3 + leafTriangles);
     return this.group;
+  }
+
+  private setFilePath(filePath: string) {
+    const fname = path.basename(filePath);
+    let name = fname;
+    const index = name.lastIndexOf('.');
+    this.name = name.substr(0, index);
+    this.filePath = filePath;
+    this.fileChanged.emit();
   }
 
   private growBranch(positionArray: number[], indexArray: number[]) {

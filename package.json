@@ -24,11 +24,13 @@
     "typescript": "^3.9.7"
   },
   "scripts": {
-    "start": "PORT=3001 react-scripts start",
+    "start": "PORT=3002 react-scripts start",
+    "start:electron": "electron ./electron/index.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
+  "homepage": "./",
   "eslintConfig": {
     "extends": "react-app"
   },
@@ -45,6 +47,7 @@
     ]
   },
   "devDependencies": {
-    "@types/downloadjs": "^1.4.2"
+    "@types/downloadjs": "^1.4.2",
+    "electron": "^11.1.1"
   }
 }

@@ -98,7 +98,7 @@ export function drawLeafTexture(
 
     // Fill stem
     ctx.lineWidth = 3.0;
-    ctx.strokeStyle = new Color(props.stemColor).getStyle();
+    ctx.strokeStyle = new Color(props.stemColor).convertSRGBToLinear().getStyle();
     ctx.resetTransform();
     ctx.transform(sx, 0, 0, sy, -(bounds.min.x * sx), -(bounds.min.y * sy));
     drawTwigPath(ctx, twigStems);
@@ -108,8 +108,8 @@ export function drawLeafTexture(
     // }
 
     for (const stamp of stamps) {
-      const innerColor = new Color(props.innerColor).convertLinearToSRGB();
-      const outerColor = new Color(props.outerColor).convertLinearToSRGB();
+      const innerColor = new Color(props.innerColor).convertSRGBToLinear();
+      const outerColor = new Color(props.outerColor).convertSRGBToLinear();
 
       const hueOffset = props.variation * rnd.next(-1, 1) * 0.4;
       const lightnessOffset = props.variation * rnd.next(-1, 1) * 0.4;

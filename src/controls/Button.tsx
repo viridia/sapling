@@ -7,8 +7,8 @@ export const Button = styled.button`
   background: ${colors.buttonBg};
   color: ${colors.text};
   font-weight: 500;
-  height: 2rem;
-  padding: 0 16px;
+  height: 1.8rem;
+  padding: 0 12px;
   outline: none;
   &:focus {
     box-shadow: 0 0 1px 2px ${colors.focusOutline};

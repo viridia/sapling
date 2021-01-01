@@ -5,6 +5,7 @@ import {
   DirectionalLight,
   HemisphereLight,
   Group,
+  sRGBEncoding,
 } from 'three';
 import { MeshGenerator } from './MeshGenerator';
 import { addGlobalListener, UnsubscribeCallback } from './properties/Property';
@@ -39,6 +40,8 @@ export class SceneRenderer {
     this.renderer = new WebGLRenderer({ antialias: true });
     this.renderer.setSize(width, height);
     this.renderer.setClearColor('#202030');
+    this.renderer.gammaFactor = 2.2;
+    this.renderer.outputEncoding = sRGBEncoding;
     this.mount.appendChild(this.renderer.domElement);
 
     // Populate scene
